@@ -1,18 +1,54 @@
+from typing import Any, Dict, List
+
 import frappe
 from frappe import _
-from typing import List, Dict, Any
+
+
+RESOLUTION_HISTORY_NAMING_SERIES = "RES-HIST-.YYYY.-"
+
+
+def _normalize_ticket_id(ticket_id: str | int) -> str:
+    if ticket_id is None or ticket_id == "":
+        frappe.throw(_("Ticket ID is required"), frappe.ValidationError)
+
+    return str(ticket_id)
+
+
+def _get_ticket(ticket_id: str | int):
+    ticket_id = _normalize_ticket_id(ticket_id)
+
+    if not ticket_id:
+        frappe.throw(_("Ticket ID is required"), frappe.ValidationError)
+
+    if not frappe.db.exists("HD Ticket", ticket_id):
+        frappe.throw(_("Ticket not found"), frappe.DoesNotExistError)
+
+    return frappe.get_doc("HD Ticket", ticket_id)
+
+
+def _assert_ticket_read_permission(ticket_doc) -> None:
+    if not frappe.has_permission(doc=ticket_doc, ptype="read"):
+        frappe.throw(
+            _("You don't have permission to view this ticket"),
+            frappe.PermissionError,
+        )
+
+
+def _update_ticket_resolution_fields(ticket_id: str, values: Dict[str, Any]) -> None:
+    frappe.db.set_value("HD Ticket", ticket_id, values, update_modified=True)
 
 
 @frappe.whitelist()
-def get_resolution_history(ticket_id: str) -> List[Dict[str, Any]]:
+def get_resolution_history(ticket_id: str | int) -> List[Dict[str, Any]]:
     """
     Get resolution history for a ticket
     """
-    ticket_doc = frappe.get_doc("HD Ticket", ticket_id)
+    ticket_id = _normalize_ticket_id(ticket_id)
+    ticket_doc = _get_ticket(ticket_id)
+    _assert_ticket_read_permission(ticket_doc)
 
-    # Check permissions
-    if not frappe.has_permission("HD Ticket", "read", ticket_doc):
-        frappe.throw(_("You don't have permission to view this ticket"), frappe.PermissionError)
+    if not frappe.db.exists("DocType", "HD Resolution History"):
+        return []
 
     # Get resolution history
     history = frappe.get_all(
@@ -44,7 +80,9 @@ def get_resolution_history(ticket_id: str) -> List[Dict[str, Any]]:
 
 
 @frappe.whitelist()
-def save_resolution_with_history(ticket_id: str, resolution_content: str) -> Dict[str, Any]:
+def save_resolution_with_history(
+    ticket_id: str | int, resolution_content: str
+) -> Dict[str, Any]:
     """
     Save resolution with history tracking. This is the single entry point for all
     resolution updates to ensure history is never lost.
@@ -55,13 +93,22 @@ def save_resolution_with_history(ticket_id: str, resolution_content: str) -> Dic
     3. Creates a NEW HD Resolution History entry marked as current
     4. Updates current_resolution_version on the ticket
     """
-    ticket_doc = frappe.get_doc("HD Ticket", ticket_id)
+    ticket_id = _normalize_ticket_id(ticket_id)
+    ticket_doc = _get_ticket(ticket_id)
+    _assert_ticket_read_permission(ticket_doc)
 
     if not resolution_content or not resolution_content.strip():
         frappe.throw(_("Resolution content cannot be empty"), frappe.ValidationError)
 
+    if not frappe.db.exists("DocType", "HD Resolution History"):
+        frappe.throw(_("HD Resolution History DocType is not available"))
+
+    resolution_content = resolution_content.strip()
+
     old_resolution = ticket_doc.resolution_details
-    old_resolution_exists = old_resolution and old_resolution.strip() and old_resolution.strip() != '<p></p>'
+    old_resolution_exists = (
+        old_resolution and old_resolution.strip() and old_resolution.strip() != "<p></p>"
+    )
 
     # Get the current max version number for this ticket
     max_version = frappe.db.get_value(
@@ -71,7 +118,7 @@ def save_resolution_with_history(ticket_id: str, resolution_content: str) -> Dic
     ) or 0
 
     # Dedup: if content is identical to existing resolution and current version is still pending, skip
-    if old_resolution_exists and old_resolution.strip() == resolution_content.strip():
+    if old_resolution_exists and old_resolution.strip() == resolution_content:
         existing_current = frappe.db.get_value(
             "HD Resolution History",
             {"ticket": ticket_id, "is_current_version": 1},
@@ -80,13 +127,17 @@ def save_resolution_with_history(ticket_id: str, resolution_content: str) -> Dic
         )
         if existing_current and existing_current.satisfaction_status == "Pending":
             # Identical content with pending review — no new version needed
-            ticket_doc.resolution_submitted = 1
-            ticket_doc.resolution_submitted_on = frappe.utils.now_datetime()
-            ticket_doc.resolution_ever_submitted = 1
-            if hasattr(ticket_doc, 'current_resolution_version'):
-                ticket_doc.current_resolution_version = existing_current.version_number
-            ticket_doc.flags.ignore_links = True
-            ticket_doc.save(ignore_permissions=True)
+            submitted_time = frappe.utils.now_datetime()
+            update_values = {
+                "resolution_submitted": 1,
+                "resolution_submitted_on": submitted_time,
+                "resolution_ever_submitted": 1,
+            }
+            if hasattr(ticket_doc, "current_resolution_version"):
+                update_values["current_resolution_version"] = (
+                    existing_current.version_number
+                )
+            _update_ticket_resolution_fields(ticket_id, update_values)
             return {
                 "success": True,
                 "message": "Resolution unchanged",
@@ -95,7 +146,7 @@ def save_resolution_with_history(ticket_id: str, resolution_content: str) -> Dic
             }
 
     # If old resolution exists and differs from new, archive the old one
-    if old_resolution_exists and old_resolution.strip() != resolution_content.strip():
+    if old_resolution_exists and old_resolution.strip() != resolution_content:
         # Check if old resolution already has a current history entry
         existing_current = frappe.db.get_value(
             "HD Resolution History",
@@ -111,6 +162,7 @@ def save_resolution_with_history(ticket_id: str, resolution_content: str) -> Dic
             max_version += 1
             frappe.get_doc({
                 "doctype": "HD Resolution History",
+                "naming_series": RESOLUTION_HISTORY_NAMING_SERIES,
                 "ticket": ticket_id,
                 "version_number": max_version,
                 "resolution_content": old_resolution,
@@ -140,6 +192,7 @@ def save_resolution_with_history(ticket_id: str, resolution_content: str) -> Dic
 
     resolution_doc = frappe.get_doc({
         "doctype": "HD Resolution History",
+        "naming_series": RESOLUTION_HISTORY_NAMING_SERIES,
         "ticket": ticket_id,
         "version_number": new_version,
         "resolution_content": resolution_content,
@@ -150,15 +203,15 @@ def save_resolution_with_history(ticket_id: str, resolution_content: str) -> Dic
     })
     resolution_doc.insert(ignore_permissions=True)
 
-    # Update ticket fields
-    ticket_doc.resolution_details = resolution_content
-    ticket_doc.resolution_submitted = 1
-    ticket_doc.resolution_submitted_on = submitted_time
-    ticket_doc.resolution_ever_submitted = 1
-    if hasattr(ticket_doc, 'current_resolution_version'):
-        ticket_doc.current_resolution_version = new_version
-    ticket_doc.flags.ignore_links = True
-    ticket_doc.save(ignore_permissions=True)
+    update_values = {
+        "resolution_details": resolution_content,
+        "resolution_submitted": 1,
+        "resolution_submitted_on": submitted_time,
+        "resolution_ever_submitted": 1,
+    }
+    if hasattr(ticket_doc, "current_resolution_version"):
+        update_values["current_resolution_version"] = new_version
+    _update_ticket_resolution_fields(ticket_id, update_values)
 
     return {
         "success": True,
@@ -169,12 +222,13 @@ def save_resolution_with_history(ticket_id: str, resolution_content: str) -> Dic
 
 
 @frappe.whitelist()
-def close_ticket(ticket_id: str) -> Dict[str, Any]:
+def close_ticket(ticket_id: str | int) -> Dict[str, Any]:
     """
     Close a ticket by setting its status to Closed.
     Uses flags.ignore_links to avoid LinkValidationError when
     linked documents (team, type, etc.) have been deleted.
     """
+    ticket_id = _normalize_ticket_id(ticket_id)
     ticket_doc = frappe.get_doc("HD Ticket", ticket_id)
 
     from helpdesk.utils import is_admin
@@ -192,10 +246,13 @@ def close_ticket(ticket_id: str) -> Dict[str, Any]:
 
 
 @frappe.whitelist()
-def create_resolution_history(ticket_id: str, resolution_content: str) -> Dict[str, Any]:
+def create_resolution_history(
+    ticket_id: str | int, resolution_content: str
+) -> Dict[str, Any]:
     """
     Create a new resolution history entry when agent submits resolution
     """
+    ticket_id = _normalize_ticket_id(ticket_id)
     ticket_doc = frappe.get_doc("HD Ticket", ticket_id)
 
     # Check permissions - only agents should be able to create resolutions
@@ -237,10 +294,11 @@ def create_resolution_history(ticket_id: str, resolution_content: str) -> Dict[s
 
 
 @frappe.whitelist()
-def get_resolution_satisfaction_permissions(ticket_id: str) -> Dict[str, bool]:
+def get_resolution_satisfaction_permissions(ticket_id: str | int) -> Dict[str, bool]:
     """
     Check what resolution satisfaction actions the current user can perform
     """
+    ticket_id = _normalize_ticket_id(ticket_id)
     ticket_doc = frappe.get_doc("HD Ticket", ticket_id)
     user = frappe.session.user
 
@@ -302,10 +360,11 @@ def get_resolution_satisfaction_permissions(ticket_id: str) -> Dict[str, bool]:
 
 
 @frappe.whitelist()
-def get_current_resolution_details(ticket_id: str) -> Dict[str, Any]:
+def get_current_resolution_details(ticket_id: str | int) -> Dict[str, Any]:
     """
     Get details of the current resolution
     """
+    ticket_id = _normalize_ticket_id(ticket_id)
     ticket_doc = frappe.get_doc("HD Ticket", ticket_id)
 
     # Check permissions
@@ -358,10 +417,13 @@ def get_current_resolution_details(ticket_id: str) -> Dict[str, Any]:
 
 
 @frappe.whitelist()
-def compare_resolution_versions(ticket_id: str, version1: int, version2: int) -> Dict[str, Any]:
+def compare_resolution_versions(
+    ticket_id: str | int, version1: int, version2: int
+) -> Dict[str, Any]:
     """
     Compare two resolution versions
     """
+    ticket_id = _normalize_ticket_id(ticket_id)
     ticket_doc = frappe.get_doc("HD Ticket", ticket_id)
 
     # Check permissions

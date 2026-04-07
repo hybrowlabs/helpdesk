@@ -582,6 +582,7 @@ class HDTicket(Document):
 
         communication.insert(ignore_permissions=True)
         capture_event("agent_replied")
+        self.sync_status_after_agent_reply(sender)
 
         if skip_email_workflow:
             return
@@ -646,6 +647,35 @@ class HDTicket(Document):
             )
         except Exception as e:
             frappe.throw(_(e))
+
+    def sync_status_after_agent_reply(self, sender: str):
+        """
+        Persist the post-reply ticket state explicitly.
+        Some downstream hooks can briefly move the ticket back to Open,
+        so the outgoing agent reply path writes the final status directly.
+        """
+        if sender == self.raised_by:
+            return
+
+        if not frappe.db.get_single_value("HD Settings", "auto_update_status"):
+            return
+
+        update_values = {}
+        first_responded_on = self.first_responded_on or frappe.utils.now_datetime()
+
+        if self.status != "Replied":
+            update_values["status"] = "Replied"
+            self.status = "Replied"
+
+        if not self.first_responded_on:
+            update_values["first_responded_on"] = first_responded_on
+            self.first_responded_on = first_responded_on
+
+        if not update_values:
+            return
+
+        frappe.db.set_value("HD Ticket", self.name, update_values, update_modified=True)
+        self.publish_update()
 
     @frappe.whitelist()
     # flake8: noqa
