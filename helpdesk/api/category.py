@@ -4,35 +4,45 @@ from frappe import _
 
 @frappe.whitelist()
 def get_categories():
-    """Get all categories with their subcategories"""
+    """Return only categories that have at least one subcategory"""
     try:
-        # Get all categories
+        # Get all parent_category values from subcategories
+        parent_categories = frappe.get_all(
+            "HD Category",
+            filters={
+                "is_active": 1,
+                "is_sub_category": 1
+            },
+            pluck="parent_category"
+        )
+
+        # Remove duplicates
+        parent_categories = list(set(parent_categories))
+
+        if not parent_categories:
+            return []
+
+        # Fetch only those categories
         categories = frappe.get_all(
             "HD Category",
-            filters={"is_active": 1, "is_sub_category": 0},
-            fields=["name", "category_name", "category_code", "description",
-                    "make_attachment_mandatory", "same_attachment_setting_as_category", "hide_attachment_field"],
+            filters={
+                "is_active": 1,
+                "is_sub_category": 0,
+                "name": ["in", parent_categories]
+            },
+            fields=[
+                "name", "category_name", "category_code", "description",
+                "make_attachment_mandatory",
+                "same_attachment_setting_as_category",
+                "hide_attachment_field"
+            ],
             order_by="category_name asc"
         )
 
-        # Get subcategories for each category
-        for category in categories:
-            subcategories = frappe.get_all(
-                "HD Category",
-                filters={
-                    "is_active": 1,
-                    "is_sub_category": 1,
-                    "parent_category": category["name"]
-                },
-                fields=["name", "category_name", "category_code", "description",
-                        "make_attachment_mandatory", "same_attachment_setting_as_category", "hide_attachment_field"],
-                order_by="category_name asc"
-            )
-            category["subcategories"] = subcategories
-
         return categories
+
     except Exception as e:
-        frappe.log_error(f"Error fetching categories: {str(e)}")
+        frappe.log_error(frappe.get_traceback(), "Get Categories Error")
         return []
 
 
@@ -102,34 +112,37 @@ def get_category_hierarchy():
 
 @frappe.whitelist()
 def search_categories(txt="", limit=10):
-    """Search HD Categories for Link field - returns category_name as label"""
+    """Return only categories that have at least one subcategory"""
     try:
-        if not txt:
-            txt = ""
+        txt = txt or ""
 
-        # Use LIKE search on category_name for better user experience
-        categories = frappe.get_all(
-            "HD Category",
-            filters={
-                "is_active": 1,
-                "is_sub_category":0,
-                "category_name": ["like", f"%{txt}%"]
-            },
-            fields=["name", "category_name", "category_code"],
-            order_by="category_name asc",
-            limit=limit
-        )
+        categories = frappe.db.sql("""
+            SELECT parent.name, parent.category_name, parent.category_code
+            FROM `tabHD Category` parent
+            WHERE parent.is_active = 1
+                AND parent.is_sub_category = 0
+                AND parent.category_name LIKE %(txt)s
+                AND EXISTS (
+                    SELECT 1 FROM `tabHD Category` child
+                    WHERE child.parent_category = parent.name
+                    AND child.is_sub_category = 1
+                )
+            ORDER BY parent.category_name ASC
+            LIMIT %(limit)s
+        """, {
+            "txt": f"%{txt}%",
+            "limit": limit
+        }, as_dict=True)
 
-        # Format for frappe search_link API format
-        result = []
-        for cat in categories:
-            result.append({
-                "value": cat["name"],
-                "label": cat["category_name"],
-                "description": cat["category_name"]
-            })
+        return [
+            {
+                "value": cat.name,
+                "label": cat.category_name,
+                "description": cat.category_name
+            }
+            for cat in categories
+        ]
 
-        return result
     except Exception as e:
         frappe.log_error(f"Error searching categories: {str(e)}")
         return []

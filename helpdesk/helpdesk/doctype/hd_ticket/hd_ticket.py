@@ -212,8 +212,7 @@ class HDTicket(Document):
                 for agent in agents:
                     self.notify_agent(agent.name, "Reaction")
 
-        if prev_status and prev_status != self.status:
-            self.sync_todo_status()
+        self.sync_todo_status()
 
         self.remove_assignment_if_not_in_team()
         self.publish_update()
