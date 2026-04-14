@@ -112,6 +112,42 @@ def search_categories(txt="", limit=10):
             "HD Category",
             filters={
                 "is_active": 1,
+                "is_sub_category":0,
+                "category_name": ["like", f"%{txt}%"]
+            },
+            fields=["name", "category_name", "category_code"],
+            order_by="category_name asc",
+            limit=limit
+        )
+
+        # Format for frappe search_link API format
+        result = []
+        for cat in categories:
+            result.append({
+                "value": cat["name"],
+                "label": cat["category_name"],
+                "description": cat["category_name"]
+            })
+
+        return result
+    except Exception as e:
+        frappe.log_error(f"Error searching categories: {str(e)}")
+        return []
+    
+
+@frappe.whitelist()
+def search_sub_categories(category,txt="", limit=10):
+    """Search HD Categories for Link field - returns category_name as label"""
+    try:
+        if not txt:
+            txt = ""
+
+        # Use LIKE search on category_name for better user experience
+        categories = frappe.get_all(
+            "HD Category",
+            filters={
+                "is_active": 1,
+                "is_sub_category":1,
                 "category_name": ["like", f"%{txt}%"]
             },
             fields=["name", "category_name", "category_code"],
