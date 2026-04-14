@@ -3,12 +3,27 @@ from frappe import _
 
 @frappe.whitelist()
 def get_categories():
-    """Get all parent categories (ticket types with no parent)"""
+    """Get all parent categories that have at least one subcategory"""
     try:
+        # Get names of parent categories that have children
+        parents_with_children = frappe.db.get_all(
+            "HD Ticket Type",
+            filters={"parent_hd_ticket_type": ["not in", ["", None]]},
+            pluck="parent_hd_ticket_type",
+            distinct=True
+        )
+
+        if not parents_with_children:
+            return []
+
         categories = frappe.get_all(
             "HD Ticket Type",
             fields=["name", "description"],
-            filters={"parent_hd_ticket_type": ["in", ["", None]]},
+            filters={
+                "name": ["in", parents_with_children],
+                "parent_hd_ticket_type": ["in", ["", None]],
+                "is_sub_category": 0
+            },
             order_by="name asc"
         )
         return categories
