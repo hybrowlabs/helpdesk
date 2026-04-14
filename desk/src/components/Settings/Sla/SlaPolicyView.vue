@@ -585,6 +585,25 @@ const goBack = () => {
   showConfirmDialog.value.show = false;
 };
 
+const checkDuplicateConditionResource = createResource({
+  url: "helpdesk.api.sla.check_duplicate_sla_condition",
+  onSuccess(result) {
+    if (result?.exists) {
+      showConfirmDialog.value = {
+        show: true,
+        title: "Duplicate SLA Condition",
+        message:
+          "SLA policy already exists for this condition. Check Day wise Time condition. At same time you cannot apply same condition.",
+        onConfirm: () => {
+          showConfirmDialog.value.show = false;
+        },
+      };
+    } else {
+      proceedWithSave();
+    }
+  },
+});
+
 const saveSla = () => {
   const validationErrors = validateSlaData(undefined, !useNewUI.value);
 
@@ -595,6 +614,22 @@ const saveSla = () => {
     return;
   }
 
+  if (useNewUI.value && slaData.value.condition_json?.length > 0) {
+    const schedulePayload = (slaData.value.support_and_resolution || []).map(
+      ({ workday, start_time, end_time }) => ({ workday, start_time, end_time })
+    );
+    checkDuplicateConditionResource.submit({
+      condition_json: JSON.stringify(slaData.value.condition_json),
+      support_and_resolution: JSON.stringify(schedulePayload),
+      exclude_name: slaActiveScreen.value.data?.name || null,
+    });
+    return;
+  }
+
+  proceedWithSave();
+};
+
+const proceedWithSave = () => {
   if (slaActiveScreen.value.data) {
     if (isOldSla.value && useNewUI.value) {
       showConfirmDialog.value = {

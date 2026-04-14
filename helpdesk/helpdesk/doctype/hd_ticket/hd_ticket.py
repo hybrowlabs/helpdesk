@@ -203,20 +203,40 @@ class HDTicket(Document):
 
     def on_update(self):
         # flake8: noqa
-        if self.status == "Open":
-            if (
-                self.get_doc_before_save()
-                and self.get_doc_before_save().status != "Open"
-            ):
+        prev = self.get_doc_before_save()
+        prev_status = prev.status if prev else None
 
-                agents = self.get_assigned_agents()
-                if agents:
-                    for agent in agents:
-                        self.notify_agent(agent.name, "Reaction")
+        if self.status == "Open" and prev_status and prev_status != "Open":
+            agents = self.get_assigned_agents()
+            if agents:
+                for agent in agents:
+                    self.notify_agent(agent.name, "Reaction")
+
+        if prev_status and prev_status != self.status:
+            self.sync_todo_status()
 
         self.remove_assignment_if_not_in_team()
         self.publish_update()
         self.update_search_index()
+
+    def sync_todo_status(self):
+        """Close linked ToDos when ticket is closed; reopen them when ticket is reopened."""
+        if self.status == "Closed":
+            todos = frappe.get_all(
+                "ToDo",
+                filters={"reference_type": "HD Ticket", "reference_name": self.name, "status": "Open"},
+                pluck="name",
+            )
+            for todo_name in todos:
+                frappe.db.set_value("ToDo", todo_name, "status", "Closed")
+        elif self.status in ("Open", "Reopened"):
+            todos = frappe.get_all(
+                "ToDo",
+                filters={"reference_type": "HD Ticket", "reference_name": self.name, "status": "Closed"},
+                pluck="name",
+            )
+            for todo_name in todos:
+                frappe.db.set_value("ToDo", todo_name, "status", "Open")
 
     def notify_agent(self, agent, notification_type="Assignment"):
         frappe.get_doc(
