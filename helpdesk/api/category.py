@@ -148,6 +148,7 @@ def search_sub_categories(category,txt="", limit=10):
             filters={
                 "is_active": 1,
                 "is_sub_category":1,
+                "parent_category": category,
                 "category_name": ["like", f"%{txt}%"]
             },
             fields=["name", "category_name", "category_code"],
