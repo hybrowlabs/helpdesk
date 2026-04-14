@@ -397,6 +397,15 @@ def get_custom_fields():
                 "insert_after": "custom_holiday_section",
             },
         ],
+        "HD Settings": [
+            {
+                "fieldname": "make_agent_status_read_only",
+                "fieldtype": "Check",
+                "label": "Make Agent Status Read Only",
+                "description": "Agent Status Manual Field Read Only",
+                "insert_after": "send_acknowledgement_email",
+            },
+        ],
     }
 
 
