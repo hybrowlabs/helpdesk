@@ -114,6 +114,10 @@ const props = defineProps({
     type: String,
     default: null,
   },
+  showLabelWithId: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 const emit = defineEmits(["update:modelValue", "change"]);
@@ -205,20 +209,25 @@ const options = createResource({
   method: "POST",
   params: getParams(text.value),
   transform: (data) => {
+    const formatLabelWithId = (label, value) => {
+      if (!props.showLabelWithId || !value) return label;
+      return `${label} - (${value})`;
+    };
+
     let allData;
 
     // HD Category uses custom API that already returns correct format
     if (props.doctype === "HD Category") {
       allData = data.map((option) => ({
         value: option.value,
-        label: option.label,
+        label: formatLabelWithId(option.label, option.value),
         description: option.description,
       }));
     } else {
       // Standard frappe search_link format
       allData = data.map((option) => ({
         value: option.value,
-        label: option?.label || option.value,
+        label: formatLabelWithId(option?.label || option.value, option.value),
         description: option?.description,
       }));
     }

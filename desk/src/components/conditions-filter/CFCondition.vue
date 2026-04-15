@@ -236,18 +236,19 @@ const subcategoriesResource = createResource({
 
 watch(
   selectedCategory,
-  (category) => {
+  (category, previousCategory) => {
     if (!category) {
-      if (props.condition[0] === SUBCATEGORY_FIELD) {
-        props.condition[0] = "";
-        props.condition[1] = "";
-      }
-      props.condition[2] = "";
+      // Keep existing sub-category value during initial hydration.
+      // It should only be cleared when the selected category actually changes.
       return;
     }
 
     if (props.condition[0] === SUBCATEGORY_FIELD) {
-      props.condition[2] = "";
+      const categoryChanged =
+        !!previousCategory && previousCategory !== category;
+      if (categoryChanged) {
+        props.condition[2] = "";
+      }
       subcategoriesResource.submit();
     }
   },
@@ -365,6 +366,7 @@ function getValueControl() {
       placeholder: "Select sub-category",
       disabled: !selectedCategory.value,
       displayField: "category_name",
+      showLabelWithId: true,
       filters: {
         is_sub_category: 1,
         parent_category: selectedCategory.value,
@@ -409,6 +411,7 @@ function getValueControl() {
     // Add display field for HD Category to show category_name instead of ID
     if (options === "HD Category") {
       linkProps.displayField = "category_name";
+      linkProps.showLabelWithId = true;
     }
     return h(Link as any, linkProps);
   } else if (typeNumber.includes(fieldtype)) {
