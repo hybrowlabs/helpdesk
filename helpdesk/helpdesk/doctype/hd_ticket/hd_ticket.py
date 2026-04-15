@@ -92,13 +92,13 @@ class HDTicket(Document):
 
         # Priority 2: Resolution added → Requested Closure (skip if already Closed/Archived)
         if self.status not in ("Closed", "Archived"):
-            resolution_changed = (
-                self.has_value_changed("resolution_details")
-                or self.has_value_changed("resolution_submitted")
-            )
-            if resolution_changed and self.resolution_details:
+            if self.resolution_details:
                 self.status = "Requested Closure"
                 return
+            if not self.resolution_details:
+                self.status = "Open"
+
+        
 
         # Priority 3: No assignee → Not Assigned (only for active/open states)
         _terminal_statuses = ("Closed", "Archived", "Requested Closure", "Resolved")
