@@ -604,7 +604,9 @@ const checkDuplicateConditionResource = createResource({
   },
 });
 
-const saveSla = () => {
+const saveSla = async () => {
+  await nextTick();
+
   const validationErrors = validateSlaData(undefined, !useNewUI.value);
 
   if (Object.values(validationErrors).some((error) => error)) {

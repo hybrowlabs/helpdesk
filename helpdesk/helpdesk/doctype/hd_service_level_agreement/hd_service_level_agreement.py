@@ -15,6 +15,7 @@ from frappe.utils import (
     to_timedelta,
 )
 
+from helpdesk.api.sla import find_duplicate_sla_condition
 from helpdesk.utils import get_context, publish_event
 
 
@@ -25,7 +26,8 @@ class HDServiceLevelAgreement(Document):
         self.validate_default_sla()
         self.validate_priorities()
         self.validate_support_and_resolution()
-        self.validate_condition()  # Looks okay but check again
+        self.validate_condition()
+        self.validate_duplicate_condition_schedule()
 
     def validate_priorities(self):
         self.validate_priority_defaults()
@@ -143,6 +145,20 @@ class HDServiceLevelAgreement(Document):
         except Exception as e:
             frappe.throw(
                 _("The Condition '{0}' is invalid: {1}").format(self.condition, str(e))
+            )
+
+    def validate_duplicate_condition_schedule(self):
+        duplicate_name = find_duplicate_sla_condition(
+            self.condition_json,
+            self.support_and_resolution,
+            exclude_name=self.name,
+        )
+
+        if duplicate_name:
+            frappe.throw(
+                _(
+                    "SLA policy <strong>{0}</strong> already has the same assignment conditions and working hours."
+                ).format(duplicate_name)
             )
 
     def before_save(self):
