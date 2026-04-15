@@ -1,5 +1,6 @@
-import { computed, ref } from "vue";
+import { computed, ref, watchEffect } from "vue";
 import { defineStore } from "pinia";
+import { createResource } from "frappe-ui";
 
 export const useTicketStatusStore = defineStore("ticketStatus", () => {
   const options = ref(["Open", "Replied", "Resolved", "Closed", "Reopened", "Not Assigned", "Archived", "Requested Closure"]);
@@ -9,6 +10,17 @@ export const useTicketStatusStore = defineStore("ticketStatus", () => {
       value: o,
     }))
   );
+  const hdSettings = createResource({
+    url: "frappe.client.get_value",
+    cache: true,
+    params: {
+      doctype: "HD Settings",
+      fieldname: "make_agent_status_read_only",
+    },
+    auto: true,
+  })
+
+  const makeAgentStatusReadOnly = computed(() => !!hdSettings.data?.make_agent_status_read_only);
 
   const colorMap = {
     Open: "red",
@@ -44,5 +56,6 @@ export const useTicketStatusStore = defineStore("ticketStatus", () => {
     stateActive,
     stateInactive,
     textColorMap,
+    makeAgentStatusReadOnly
   };
 });

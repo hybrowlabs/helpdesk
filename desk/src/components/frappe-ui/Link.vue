@@ -155,17 +155,10 @@ watchDebounced(
 watch(
   () => props?.filters,
   (newVal) => {
-    const newParams = props.doctype === "HD Category" ? {
-      txt: text.value,
-      limit: props.pageLength,
-    } : {
-      txt: text.value,
-      doctype: props.doctype,
-      filters: newVal,
-      page_length: props.pageLength,
-    };
+    const newParams = getParams(text.value);
 
     options.update({
+      url: getUrl(),
       params: newParams,
     });
     options.reload();
@@ -173,21 +166,44 @@ watch(
   { deep: true }
 );
 
-const options = createResource({
-  url: props.doctype === "HD Category" ? "helpdesk.api.category.search_categories" : "frappe.desk.search.search_link",
-  cache: [props.doctype, text.value, props.hideMe, props.displayField],
-  method: "POST",
-  params: props.doctype === "HD Category" ? {
-    txt: text.value,
-    limit: props.pageLength,
-  } : {
-    txt: text.value,
+const getUrl = () => {
+  if (props.doctype === "HD Category") {
+    return props.filters?.is_sub_category
+      ? "helpdesk.api.category.search_sub_categories"
+      : "helpdesk.api.category.search_categories";
+  }
+  return "frappe.desk.search.search_link";
+};
+
+const getParams = (val) => {
+  if (props.doctype === "HD Category") {
+    if (props.filters?.is_sub_category) {
+      return {
+        txt: val,
+        limit: props.pageLength,
+        category: props.filters.parent_category,
+      };
+    }
+    return {
+      txt: val,
+      limit: props.pageLength,
+    };
+  }
+  return {
+    txt: val,
     doctype: props.doctype,
     filters: props.filters,
     page_length: props.pageLength,
-    reference_doctype: props.displayField ? props.doctype : undefined,
+    ...(props.displayField ? { reference_doctype: props.doctype } : {}),
     ignore_user_permissions: true,
-  },
+  };
+};
+
+const options = createResource({
+  url: getUrl(),
+  cache: [props.doctype, text.value, props.hideMe, props.displayField, props.filters?.parent_category],
+  method: "POST",
+  params: getParams(text.value),
   transform: (data) => {
     let allData;
 
@@ -228,15 +244,7 @@ function reload(val) {
   )
     return;
 
-  const newParams = props.doctype === "HD Category" ? {
-    txt: val,
-    limit: props.pageLength,
-  } : {
-    txt: val,
-    doctype: props.doctype,
-    filters: props.filters,
-    page_length: props.pageLength,
-  };
+  const newParams = getParams(val);
 
   options.update({
     params: newParams,
