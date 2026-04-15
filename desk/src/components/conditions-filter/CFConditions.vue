@@ -4,6 +4,7 @@
       <CFCondition
         v-if="Array.isArray(condition)"
         :condition="condition"
+        :conditionsContext="props.conditions"
         :isChild="props.isChild"
         :itemIndex="i"
         @remove="removeCondition(condition)"
