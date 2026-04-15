@@ -73,8 +73,44 @@ class HDTicket(Document):
         if not self.is_new():
             self.handle_ticket_activity_update()
             self.handle_resolution_submission()
+            self.handle_status_auto_update()
 
         self.handle_email_feedback()
+
+    def handle_status_auto_update(self):
+        """
+        Auto-update ticket status based on:
+        1. custom_archived checkbox → status = "Archived"
+        2. Resolution added + status != "Closed" → status = "Requested Closure"
+        3. No assignee + active status → status = "Not Assigned"
+        """
+        # Priority 1: Archived takes precedence
+        if getattr(self, "custom_archived", None):
+            if self.status != "Archived":
+                self.status = "Archived"
+            return
+
+        # Priority 2: Resolution added → Requested Closure (skip if already Closed/Archived)
+        if self.status not in ("Closed", "Archived"):
+            resolution_changed = (
+                self.has_value_changed("resolution_details")
+                or self.has_value_changed("resolution_submitted")
+            )
+            if resolution_changed and self.resolution_details:
+                self.status = "Requested Closure"
+                return
+
+        # Priority 3: No assignee → Not Assigned (only for active/open states)
+        _terminal_statuses = ("Closed", "Archived", "Requested Closure", "Resolved")
+        if self.status not in _terminal_statuses:
+            has_assignee = False
+            if hasattr(self, "_assign") and self._assign:
+                try:
+                    has_assignee = bool(json.loads(self._assign))
+                except (ValueError, TypeError):
+                    pass
+            if not has_assignee:
+                self.status = "Not Assigned"
 
     def handle_resolution_submission(self):
         """

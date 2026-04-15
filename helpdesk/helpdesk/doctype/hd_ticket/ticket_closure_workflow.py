@@ -39,7 +39,7 @@ def request_closure(ticket_id: str, resolution_notes: str = ""):
         _notify_agents_of_closure_request(ticket_doc, user, resolution_notes)
 
     # Set status to indicate closure is requested
-    ticket_doc.status = "Pending Closure"
+    ticket_doc.status = "Requested Closure"
     ticket_doc.save(ignore_permissions=True)
 
     return {"success": True, "message": "Closure request submitted"}
