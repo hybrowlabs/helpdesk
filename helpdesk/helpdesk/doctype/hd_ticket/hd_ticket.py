@@ -103,12 +103,12 @@ class HDTicket(Document):
         # Priority 3: No assignee → Not Assigned (only for active/open states)
         _terminal_statuses = ("Closed", "Archived", "Requested Closure", "Resolved")
         if self.status not in _terminal_statuses:
-            has_assignee = False
-            if hasattr(self, "_assign") and self._assign:
-                try:
-                    has_assignee = bool(json.loads(self._assign))
-                except (ValueError, TypeError):
-                    pass
+            has_assignee = frappe.db.exists("ToDo", {
+                "reference_type": "HD Ticket",
+                "reference_name": self.name,
+                "allocated_to": ["is", "set"],
+                "status": "Open",
+            })
             if not has_assignee:
                 self.status = "Not Assigned"
 
