@@ -1,18 +1,30 @@
 {
  "actions": [],
  "allow_guest_to_view": 1,
- "autoname": "hash",
+ "autoname": "naming_series:",
  "creation": "2022-02-08 18:13:42.039744",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "category_name",
   "description",
   "column_break_iczs",
   "icon"
  ],
  "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "no_copy": 1,
+   "options": "KB-CAT-.#####",
+   "print_hide": 1,
+   "reqd": 1,
+   "set_only_once": 1
+  },
   {
    "allow_in_quick_entry": 1,
    "fieldname": "category_name",
@@ -41,7 +53,7 @@
  "modified_by": "Administrator",
  "module": "Helpdesk",
  "name": "HD Article Category",
- "naming_rule": "Random",
+ "naming_rule": "By \"Naming Series\" field",
  "nsm_parent_field": "parent_hd_article_category",
  "owner": "Administrator",
  "permissions": [

@@ -4,16 +4,13 @@
       class="w-full py-3 pl-2"
       @click="holidayListActiveScreen = { screen: 'view', data: data }"
     >
-      <div class="text-base text-ink-gray-7 font-medium">{{ data.holiday_name || data.name }}</div>
+      <div class="text-base text-ink-gray-7 font-medium">{{ data.holiday_list_name || data.name }}</div>
       <div class="flex items-center gap-4 mt-1">
         <div class="text-sm text-ink-gray-5">
-          {{ formatDate(data.date) }}
+          {{ formatDate(data.from_date) }} — {{ formatDate(data.to_date) }}
         </div>
-        <div v-if="data.type" class="text-xs px-2 py-0.5 rounded bg-gray-100 text-ink-gray-6">
-          {{ data.type }}
-        </div>
-        <div v-if="data.repeat_next_year" class="text-xs text-blue-600">
-          Repeats Yearly
+        <div v-if="data.total_holidays" class="text-xs px-2 py-0.5 rounded bg-gray-100 text-ink-gray-6">
+          {{ data.total_holidays }} holidays
         </div>
       </div>
     </div>
@@ -63,10 +60,10 @@ import { ConfirmDelete } from "@/utils";
 const formatDate = (dateStr) => {
   if (!dateStr) return "";
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', { 
-    month: 'short', 
-    day: 'numeric', 
-    year: 'numeric' 
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
   });
 };
 
@@ -91,7 +88,7 @@ const dropdownOptions = [
     label: "Duplicate",
     onClick: () => {
       duplicateDialog.value.show = true;
-      duplicateDialog.value.name = props.data.name + " (Copy)";
+      duplicateDialog.value.name = (props.data.holiday_list_name || props.data.name) + " (Copy)";
     },
     icon: "copy",
   },
@@ -102,20 +99,20 @@ const dropdownOptions = [
 ];
 
 const duplicate = () => {
-  // For Holidays doctype, we create a new holiday with the same data
   createResource({
     url: "helpdesk.api.holidays.create_holiday",
     params: {
       holiday_data: {
-        holiday_name: duplicateDialog.value.name,
-        date: props.data.date,
-        type: props.data.type || "National Holiday",
-        repeat_next_year: props.data.repeat_next_year || 0
+        holiday_list_name: duplicateDialog.value.name,
+        from_date: props.data.from_date,
+        to_date: props.data.to_date,
+        description: props.data.description || "",
+        holidays: [],
       }
     },
     onSuccess: (data) => {
       holidayList.reload();
-      toast.success("Holiday duplicated");
+      toast.success("Holiday list duplicated");
       duplicateDialog.value = {
         show: false,
         name: "",
@@ -143,7 +140,7 @@ const deleteHolidayList = () => {
       holiday_name: props.data.name
     },
     onSuccess: () => {
-      toast.success("Holiday deleted");
+      toast.success("Holiday list deleted");
       holidayList.reload();
     },
     auto: true

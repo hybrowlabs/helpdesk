@@ -177,147 +177,91 @@
         </div>
       </div>
     </div>
+    <!-- Team-Based Escalation Section -->
     <hr class="my-8" />
     <div>
       <div class="flex flex-col gap-1">
         <span class="text-lg font-semibold text-ink-gray-8"
-          >Employee Hierarchy Assignment</span
+          >Escalation</span
         >
         <span class="text-p-sm text-ink-gray-6">
-          Configure automatic assignment based on employee hierarchy
+          Configure automatic team escalation when SLA is breached
         </span>
       </div>
-      <div class="mt-5 space-y-4">
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Checkbox
-            label="Assign to Direct Manager"
-            :model-value="slaData.custom_assign_to_direct_manager"
-            @update:model-value="(val) => slaData.custom_assign_to_direct_manager = val"
-            class="text-ink-gray-6 text-base font-medium"
-          />
-          <Checkbox
-            label="Assign to HOD"
-            :model-value="slaData.custom_assign_to_hod"
-            @update:model-value="(val) => slaData.custom_assign_to_hod = val"
-            class="text-ink-gray-6 text-base font-medium"
-          />
-          <Checkbox
-            label="Assign to HRBP"
-            :model-value="slaData.custom_assign_to_hrbp"
-            @update:model-value="(val) => slaData.custom_assign_to_hrbp = val"
-            class="text-ink-gray-6 text-base font-medium"
-          />
-          <Checkbox
-            label="Assign to Manager of Raiser"
-            :model-value="slaData.custom_assign_to_manager_of_raiser"
-            @update:model-value="(val) => slaData.custom_assign_to_manager_of_raiser = val"
-            class="text-ink-gray-6 text-base font-medium"
-          />
-        </div>
-        
-        <div v-if="hasEmployeeAssignment" class="space-y-4 p-4 bg-gray-50 rounded-lg">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <FormControl
-              type="select"
-              size="sm"
-              variant="subtle"
-              label="Assignment Priority"
-              v-model="slaData.custom_assignment_priority"
-              :options="assignmentPriorityOptions"
-              placeholder="Select priority"
-            />
-            <FormControl
-              type="select"
-              size="sm"
-              variant="subtle"
-              label="Fallback Team"
-              v-model="slaData.custom_fallback_team"
-              :options="teamOptions"
-              placeholder="Select fallback team"
-            />
+      <div class="mt-5 space-y-6">
+        <!-- First Level Escalation -->
+        <div class="space-y-4">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold text-ink-gray-7 bg-blue-50 px-2 py-0.5 rounded">Level 1</span>
+            <span class="text-sm font-medium text-ink-gray-7">Response SLA Breach</span>
           </div>
           <Checkbox
-            label="Use Assignee's Holiday List"
-            :model-value="slaData.custom_use_assignee_holiday_list"
-            @update:model-value="(val) => slaData.custom_use_assignee_holiday_list = val"
+            label="Enable First Level Escalation"
+            :model-value="slaData.custom_first_level_escalation_enabled"
+            @update:model-value="(val) => slaData.custom_first_level_escalation_enabled = val"
             class="text-ink-gray-6 text-base font-medium"
           />
-          <div class="text-p-sm text-ink-gray-5 italic">
-            When enabled, SLA calculations will use the assigned employee's holiday list instead of the SLA holiday list.
+          <div v-if="slaData.custom_first_level_escalation_enabled" class="space-y-4 p-4 bg-gray-50 rounded-lg">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <FormControl
+                type="select"
+                size="sm"
+                variant="subtle"
+                label="Escalate To Team"
+                v-model="slaData.custom_first_level_escalation_team"
+                :options="teamOptions"
+                placeholder="Select a team"
+              />
+              <FormControl
+                type="number"
+                size="sm"
+                variant="subtle"
+                label="Additional Delay (hours after SLA breach)"
+                v-model="slaData.custom_first_level_escalation_delay_hours"
+                placeholder="0"
+              />
+            </div>
+            <div class="text-p-sm text-ink-gray-5 italic">
+              When response SLA is breached, the ticket will be escalated to this team via round-robin assignment.
+            </div>
           </div>
         </div>
-        
-        <div v-if="slaData.custom_auto_assign_team && hasEmployeeAssignment"
-             class="p-3 bg-yellow-50 border border-yellow-200 rounded-md text-sm text-yellow-800">
-          <span class="font-semibold">Note:</span> Both Employee Hierarchy and Team assignment are enabled. Employee Hierarchy will take priority.
-        </div>
-      </div>
-    </div>
 
-    <!-- Second Level Escalation Section -->
-    <hr class="my-8" v-if="hasEmployeeAssignment" />
-    <div v-if="hasEmployeeAssignment">
-      <div class="flex flex-col gap-1">
-        <span class="text-lg font-semibold text-ink-gray-8"
-          >Second Level Escalation</span
-        >
-        <span class="text-p-sm text-ink-gray-6">
-          Configure automatic escalation when first level doesn't resolve the ticket
-        </span>
-      </div>
-      <div class="mt-5 space-y-4">
-        <Checkbox
-          label="Enable Second Level Escalation"
-          :model-value="slaData.custom_second_level_escalation_enabled"
-          @update:model-value="(val) => slaData.custom_second_level_escalation_enabled = val"
-          class="text-ink-gray-6 text-base font-medium"
-        />
-
-        <div v-if="slaData.custom_second_level_escalation_enabled" class="space-y-4 p-4 bg-gray-50 rounded-lg">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <FormControl
-              type="select"
-              size="sm"
-              variant="subtle"
-              label="Escalate To"
-              v-model="slaData.custom_second_level_escalation_target"
-              :options="secondLevelTargetOptions"
-              placeholder="Select escalation target"
-            />
-            <FormControl
-              type="number"
-              size="sm"
-              variant="subtle"
-              label="Delay (hours after first escalation)"
-              v-model="slaData.custom_second_level_escalation_delay_hours"
-              placeholder="24"
-            />
+        <!-- Second Level Escalation -->
+        <div class="space-y-4">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-semibold text-ink-gray-7 bg-orange-50 px-2 py-0.5 rounded">Level 2</span>
+            <span class="text-sm font-medium text-ink-gray-7">Resolution SLA Breach</span>
           </div>
-
-          <FormControl
-            v-if="slaData.custom_second_level_escalation_target === 'Specific User'"
-            type="link"
-            size="sm"
-            variant="subtle"
-            label="Select User"
-            v-model="slaData.custom_second_level_escalation_user"
-            doctype="HD Agent"
-            placeholder="Select a user"
+          <Checkbox
+            label="Enable Second Level Escalation"
+            :model-value="slaData.custom_second_level_escalation_enabled"
+            @update:model-value="(val) => { slaData.custom_second_level_escalation_enabled = val; if (val) slaData.custom_second_level_escalation_target = 'Specific Team'; }"
+            class="text-ink-gray-6 text-base font-medium"
           />
-
-          <FormControl
-            v-if="slaData.custom_second_level_escalation_target === 'Specific Team'"
-            type="select"
-            size="sm"
-            variant="subtle"
-            label="Select Team"
-            v-model="slaData.custom_second_level_escalation_team"
-            :options="teamOptions"
-            placeholder="Select a team"
-          />
-
-          <div class="text-p-sm text-ink-gray-5 italic">
-            After the specified delay, if the ticket is still open, it will be automatically escalated to the configured target.
+          <div v-if="slaData.custom_second_level_escalation_enabled" class="space-y-4 p-4 bg-gray-50 rounded-lg">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <FormControl
+                type="select"
+                size="sm"
+                variant="subtle"
+                label="Escalate To Team"
+                v-model="slaData.custom_second_level_escalation_team"
+                :options="teamOptions"
+                placeholder="Select a team"
+              />
+              <FormControl
+                type="number"
+                size="sm"
+                variant="subtle"
+                label="Delay (hours after first escalation)"
+                v-model="slaData.custom_second_level_escalation_delay_hours"
+                placeholder="8"
+              />
+            </div>
+            <div class="text-p-sm text-ink-gray-5 italic">
+              After the specified delay since first escalation, if still unresolved, the ticket escalates to this team.
+            </div>
           </div>
         </div>
       </div>
@@ -439,7 +383,7 @@ import {
   Switch,
   toast,
 } from "frappe-ui";
-import { inject, nextTick, onMounted, onUnmounted, ref, watch, computed } from "vue";
+import { inject, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import SlaAssignmentConditions from "./SlaAssignmentConditions.vue";
 import SlaHolidays from "./SlaHolidays.vue";
 import SlaPriorityList from "./SlaPriorityList.vue";
@@ -475,23 +419,6 @@ const assignmentPriorityOptions = [
   { label: "HRBP First", value: "HRBP First" },
   { label: "Round Robin", value: "Round Robin" },
 ];
-
-const secondLevelTargetOptions = [
-  { label: "Manager of Assignee", value: "Manager of Assignee" },
-  { label: "Manager of HRBP", value: "Manager of HRBP" },
-  { label: "Manager of HOD", value: "Manager of HOD" },
-  { label: "Specific User", value: "Specific User" },
-  { label: "Specific Team", value: "Specific Team" },
-];
-
-const hasEmployeeAssignment = computed(() => {
-  return (
-    slaData.value.custom_assign_to_direct_manager ||
-    slaData.value.custom_assign_to_hod ||
-    slaData.value.custom_assign_to_hrbp ||
-    slaData.value.custom_assign_to_manager_of_raiser
-  );
-});
 
 const getSlaData = createResource({
   url: "helpdesk.api.sla.get_sla",
@@ -530,6 +457,10 @@ const getSlaData = createResource({
       custom_fallback_team: data.custom_fallback_team || "",
       custom_use_assignee_holiday_list: data.custom_use_assignee_holiday_list || false,
       custom_auto_assign_team: data.custom_auto_assign_team || "",
+      // First level team escalation fields
+      custom_first_level_escalation_enabled: data.custom_first_level_escalation_enabled || false,
+      custom_first_level_escalation_team: data.custom_first_level_escalation_team || "",
+      custom_first_level_escalation_delay_hours: data.custom_first_level_escalation_delay_hours || 0,
       // Second level escalation fields
       custom_second_level_escalation_enabled: data.custom_second_level_escalation_enabled || false,
       custom_second_level_escalation_target: data.custom_second_level_escalation_target || "",
@@ -715,34 +646,6 @@ watch(
     }
   },
   { deep: true }
-);
-
-// Auto-populate assignment priority when hierarchy checkboxes are ticked
-watch(
-  () => slaData.value.custom_assign_to_direct_manager,
-  (newVal, oldVal) => {
-    if (newVal && !oldVal) {
-      slaData.value.custom_assignment_priority = "Direct Manager First";
-    }
-  }
-);
-
-watch(
-  () => slaData.value.custom_assign_to_hod,
-  (newVal, oldVal) => {
-    if (newVal && !oldVal) {
-      slaData.value.custom_assignment_priority = "HOD First";
-    }
-  }
-);
-
-watch(
-  () => slaData.value.custom_assign_to_hrbp,
-  (newVal, oldVal) => {
-    if (newVal && !oldVal) {
-      slaData.value.custom_assignment_priority = "HRBP First";
-    }
-  }
 );
 
 const beforeUnloadHandler = (event) => {

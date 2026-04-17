@@ -13,9 +13,9 @@ import { createListResource } from "frappe-ui";
 import { provide } from "vue";
 
 const holidayListData = createListResource({
-  doctype: "Holidays",
-  fields: ["name", "holiday_name", "date", "type", "official_location", "repeat_next_year"],
-  orderBy: "date desc",
+  doctype: "HD Service Holiday List",
+  fields: ["name", "holiday_list_name", "from_date", "to_date", "total_holidays", "description"],
+  orderBy: "from_date desc",
   start: 0,
   pageLength: 999,
   auto: true,

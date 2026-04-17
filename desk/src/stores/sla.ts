@@ -76,6 +76,16 @@ export const slaData = ref({
   custom_fallback_team: "",
   custom_use_assignee_holiday_list: false,
   custom_auto_assign_team: "",
+  // First level team escalation
+  custom_first_level_escalation_enabled: false,
+  custom_first_level_escalation_team: "",
+  custom_first_level_escalation_delay_hours: 0,
+  // Second level team escalation
+  custom_second_level_escalation_enabled: false,
+  custom_second_level_escalation_target: "",
+  custom_second_level_escalation_user: "",
+  custom_second_level_escalation_team: "",
+  custom_second_level_escalation_delay_hours: 8,
 });
 
 export const resetSlaData = () => {
@@ -105,6 +115,16 @@ export const resetSlaData = () => {
     custom_fallback_team: "",
     custom_use_assignee_holiday_list: false,
     custom_auto_assign_team: "",
+    // First level team escalation
+    custom_first_level_escalation_enabled: false,
+    custom_first_level_escalation_team: "",
+    custom_first_level_escalation_delay_hours: 0,
+    // Second level team escalation
+    custom_second_level_escalation_enabled: false,
+    custom_second_level_escalation_target: "",
+    custom_second_level_escalation_user: "",
+    custom_second_level_escalation_team: "",
+    custom_second_level_escalation_delay_hours: 8,
   };
 };
 

@@ -248,13 +248,45 @@ def get_custom_fields():
     """Helpdesk specific custom fields that needs to be added to various DocTypes."""
     return {
         "HD Service Level Agreement": [
+            # First Level Team Escalation Section
+            {
+                "fieldname": "custom_first_level_escalation_section",
+                "fieldtype": "Section Break",
+                "label": "First Level Escalation (Response SLA Breach)",
+                "description": "Escalate to another team when response SLA is breached",
+                "insert_after": "custom_use_assignee_holiday_list",
+            },
+            {
+                "fieldname": "custom_first_level_escalation_enabled",
+                "fieldtype": "Check",
+                "label": "Enable First Level Team Escalation",
+                "default": "0",
+                "insert_after": "custom_first_level_escalation_section",
+            },
+            {
+                "fieldname": "custom_first_level_escalation_team",
+                "fieldtype": "Link",
+                "label": "Escalate To Team",
+                "options": "HD Team",
+                "depends_on": "eval: doc.custom_first_level_escalation_enabled",
+                "insert_after": "custom_first_level_escalation_enabled",
+            },
+            {
+                "fieldname": "custom_first_level_escalation_delay_hours",
+                "fieldtype": "Int",
+                "label": "First Level Escalation Delay (hours)",
+                "description": "Additional hours after response SLA breach before escalating",
+                "default": "0",
+                "depends_on": "eval: doc.custom_first_level_escalation_enabled",
+                "insert_after": "custom_first_level_escalation_team",
+            },
             # Second Level Escalation Section
             {
                 "fieldname": "custom_second_level_escalation_section",
                 "fieldtype": "Section Break",
-                "label": "Second Level Escalation",
-                "description": "Configure automatic second level escalation when first level doesn't resolve",
-                "insert_after": "custom_use_assignee_holiday_list",
+                "label": "Second Level Escalation (Resolution SLA Breach)",
+                "description": "Escalate to higher team when resolution SLA is breached after first escalation",
+                "insert_after": "custom_first_level_escalation_delay_hours",
             },
             {
                 "fieldname": "custom_second_level_escalation_enabled",

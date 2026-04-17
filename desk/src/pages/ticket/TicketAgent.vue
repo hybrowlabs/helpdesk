@@ -780,7 +780,7 @@ async function triggerClose() {
     return;
   }
 
-  // No resolution details, show template-based dialog to collect them
+  // No resolution details, show dialog to collect them
   closeNotes.value = "";
   closeError.value = "";
   closeLoading.value = false;
