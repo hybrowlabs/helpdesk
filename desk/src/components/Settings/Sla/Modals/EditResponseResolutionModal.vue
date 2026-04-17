@@ -7,16 +7,6 @@
   >
     <template #body-content>
       <div class="flex flex-col gap-4">
-        <FormControl
-          :type="'select'"
-          size="sm"
-          variant="subtle"
-          placeholder="Select Priority"
-          label="Priority"
-          v-model="priorityData.priority"
-          :options="priorityOptions"
-          required
-        />
         <div>
           <FormLabel label="Response time" required />
           <Popover class="mt-2">
@@ -65,15 +55,11 @@
             </template>
           </Popover>
         </div>
-        <Checkbox
-          v-model="priorityData.default_priority"
-          label="Set default priority"
-        />
       </div>
     </template>
     <template #actions>
-      <div class="flex justify-between">
-        <div>
+      <div class="flex justify-end">
+        <!-- <div>
           <Button
             variant="subtle"
             :theme="isConfirmingDelete ? 'red' : 'gray'"
@@ -81,7 +67,7 @@
             @click="deleteItem"
             icon-left="trash-2"
           />
-        </div>
+        </div> -->
         <div class="flex gap-2">
           <Button
             variant="subtle"
@@ -99,9 +85,7 @@
 <script setup lang="ts">
 import {
   Button,
-  Checkbox,
   Dialog,
-  FormControl,
   FormLabel,
   Popover,
   toast,
@@ -125,18 +109,13 @@ const props = defineProps({
 const priorityOptions = inject("priorityOptions");
 
 const priorityData = ref({
-  priority: props.row.priority,
+  priority: props.row.priority ?? "Medium",
   resolution_time: props.row.resolution_time,
   response_time: props.row.response_time,
-  default_priority: props.row.default_priority,
+  default_priority: props.row.default_priority ?? true
 });
 
 const validateForm = () => {
-  if (!priorityData.value.priority) {
-    toast.error("Please select a priority");
-    return false;
-  }
-
   const resolutionTime = parseInt(priorityData.value.resolution_time);
   if (isNaN(resolutionTime) || resolutionTime <= 0) {
     toast.error("Resolution time must be a positive number");
@@ -147,12 +126,6 @@ const validateForm = () => {
   if (isNaN(responseTime) || responseTime <= 0) {
     toast.error("Response time must be a positive number");
     return false;
-  }
-
-  if (priorityData.value.default_priority) {
-    slaData.value.priorities.forEach((priority) => {
-      priority.default_priority = false;
-    });
   }
 
   return true;

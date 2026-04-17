@@ -227,7 +227,7 @@ const options = createResource({
       // Standard frappe search_link format
       allData = data.map((option) => ({
         value: option.value,
-        label: formatLabelWithId(option?.label || option.value, option.value),
+        label: formatLabelWithId(option?.label || option?.description || option.value, option.value),
         description: option?.description,
       }));
     }
