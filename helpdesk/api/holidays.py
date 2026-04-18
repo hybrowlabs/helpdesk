@@ -179,6 +179,7 @@ def should_exclude_user_from_assignment(user, assignment_rule_name=None, check_d
     2. Holidays - check if user belongs to any Dynamic User Assignment in holiday's official_location
     
     Simple logic: If user has holiday OR leave on check_date, exclude them from ALL assignments.
+    Leave logic also excludes the day immediately before the leave starts.
     
     Args:
         user: User email/name
@@ -189,7 +190,7 @@ def should_exclude_user_from_assignment(user, assignment_rule_name=None, check_d
         bool: True if user should be excluded, False otherwise
     """
     try:
-        from frappe.utils import getdate, today
+        from frappe.utils import add_days, getdate, today
         
         if not check_date:
             check_date = getdate(today())
@@ -217,15 +218,20 @@ def should_exclude_user_from_assignment(user, assignment_rule_name=None, check_d
             
             print(f"[HOLIDAY DEBUG] Found {len(leave_applications)} leave applications for employee {employee}")
             
-            # Check if check_date falls within any leave application date range
+            # Exclude on the leave dates themselves, and on the day before leave starts.
             for leave in leave_applications:
                 if leave.from_date and leave.to_date:
                     leave_from = getdate(leave.from_date)
                     leave_to = getdate(leave.to_date)
+                    day_before_leave = getdate(add_days(leave_from, -1))
                     print(f"[HOLIDAY DEBUG] Checking leave {leave.name}: {leave_from} to {leave_to}")
-                    if leave_from <= check_date <= leave_to:
-                        # User is on leave for this date - exclude them
-                        print(f"[HOLIDAY DEBUG] EXCLUDED: User {user} is on leave ({leave.name})")
+                    if check_date == day_before_leave or leave_from <= check_date <= leave_to:
+                        reason = (
+                            f"one day before leave starts ({leave.name})"
+                            if check_date == day_before_leave
+                            else f"on leave ({leave.name})"
+                        )
+                        print(f"[HOLIDAY DEBUG] EXCLUDED: User {user} is {reason}")
                         return True
         else:
             print(f"[HOLIDAY DEBUG] No employee found for user {user}")
