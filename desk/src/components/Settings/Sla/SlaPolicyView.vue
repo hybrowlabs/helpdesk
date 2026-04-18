@@ -294,14 +294,16 @@
             />
           </div>
 
-          <FormControl
+          <Link
             v-if="slaData.custom_second_level_escalation_target === 'Specific User'"
-            type="link"
+            :hideMe="true"
             size="sm"
             variant="subtle"
             label="Select User"
             v-model="slaData.custom_second_level_escalation_user"
             doctype="HD Agent"
+            :filters="{ is_active: 1 }"
+            show-label-with-id
             placeholder="Select a user"
           />
 
@@ -357,34 +359,19 @@
         </span>
       </div>
       <div class="mt-5">
-        <!-- <div class="flex gap-6">
-          <div
-            class="flex items-center gap-2"
-            @click="onApplySlaForChange(false)"
-          >
-            <input
-              name="apply_sla_for"
-              :checked="!slaData.apply_sla_for_resolution"
-              type="radio"
-            />
-            <div class="select-none text-ink-gray-6 text-sm font-medium">
-              Apply SLA for response time
-            </div>
+        <div class="md:w-1/2 mb-5">
+          <FormControl
+            type="number"
+            size="sm"
+            variant="subtle"
+            label="Auto Close Days"
+            v-model="slaData.auto_close_days"
+            placeholder="e.g. 3"
+          />
+          <div class="text-p-sm text-ink-gray-5 mt-1.5 italic">
+            Number of days after which a resolved ticket will be automatically closed.
           </div>
-          <div
-            class="flex items-center gap-2"
-            @click="onApplySlaForChange(true)"
-          >
-            <input
-              name="apply_sla_for"
-              :checked="slaData.apply_sla_for_resolution"
-              type="radio"
-            />
-            <div class="select-none text-ink-gray-6 text-sm font-medium">
-              Apply SLA for response time and resolution time
-            </div>
-          </div>
-        </div> -->
+        </div>
         <div class="mt-5">
           <SlaPriorityList />
         </div>
@@ -444,6 +431,7 @@ import SlaAssignmentConditions from "./SlaAssignmentConditions.vue";
 import SlaHolidays from "./SlaHolidays.vue";
 import SlaPriorityList from "./SlaPriorityList.vue";
 import SlaStatusList from "./SlaStatusList.vue";
+import Link from "@/components/frappe-ui/Link.vue";
 import { disableSettingModalOutsideClick } from "../settingsModal";
 import { useOnboarding } from "frappe-ui/frappe";
 import { FormControl, createResource } from "frappe-ui";
@@ -536,6 +524,7 @@ const getSlaData = createResource({
       custom_second_level_escalation_user: data.custom_second_level_escalation_user || "",
       custom_second_level_escalation_team: data.custom_second_level_escalation_team || "",
       custom_second_level_escalation_delay_hours: data.custom_second_level_escalation_delay_hours || 24,
+      auto_close_days: data.auto_close_days,
     };
     slaData.value = newData;
     slaData.value.apply_sla_for_resolution = true;

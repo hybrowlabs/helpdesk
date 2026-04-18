@@ -13,9 +13,8 @@
         class="text-gray-600 overflow-hidden whitespace-nowrap text-ellipsis"
         :class="{
           'ml-2':
-            column.key === 'priority' ||
             column.key === 'response_time' ||
-            column.key === 'resolution_time',
+            column.key === 'resolution_time'
         }"
       >
         {{ column.label }}
@@ -45,7 +44,7 @@
       slaDataErrors.priorities
     "
   >
-    <div>
+    <!-- <div>
       <Button
         v-if="slaData.priorities.length !== priorityOptions.length"
         variant="subtle"
@@ -53,7 +52,7 @@
         @click="addRow"
         icon-left="plus"
       />
-    </div>
+    </div> -->
     <ErrorMessage
       :message="slaDataErrors.default_priority || slaDataErrors.priorities"
     />
@@ -61,7 +60,7 @@
 </template>
 
 <script setup lang="ts">
-import { Button, createResource, toast } from "frappe-ui";
+import { Button, createResource } from "frappe-ui";
 import SlaPriorityListItem from "./SlaPriorityListItem.vue";
 import { computed, provide, reactive } from "vue";
 import {
@@ -91,14 +90,12 @@ createResource({
       })
     );
     if (!slaActiveScreen.value.data) {
-      slaData.value.priorities = priorityOptions.map((p, index) => {
-        return {
-          priority: p.value,
-          resolution_time: 60 * 60,
-          response_time: 60 * 60,
-          default_priority: index === 0,
-        };
-      });
+      slaData.value.priorities = [{
+        priority: "Medium",
+        resolution_time: 60 * 60,
+        response_time: 60 * 60,
+        default_priority: true
+      }];
     }
   },
 });
@@ -108,37 +105,15 @@ const priorityOptions = reactive([]);
 provide("priorityOptions", priorityOptions);
 
 const addRow = () => {
-  const existingPriorities = slaData.value.priorities.map((p) => p.priority);
-  const availablePriorities = priorityOptions.filter(
-    (p) => !existingPriorities.includes(p.value)
-  );
-
-  if (availablePriorities.length === 0) {
-    toast.error("All available priorities have already been added");
-    return;
-  }
-
-  const newPriority = availablePriorities[0].value;
-
   slaData.value.priorities.push({
-    priority: newPriority,
+    priority: "Medium",
     resolution_time: 60 * 60,
     response_time: 60 * 60,
-    default_priority: slaData.value.priorities.length === 0,
+    default_priority: true
   });
 };
 
 const columns = computed(() => [
-  {
-    label: "Priority",
-    key: "priority",
-    isRequired: true,
-  },
-  {
-    label: "Default priority",
-    key: "default_priority",
-    isRequired: true,
-  },
   {
     label: "First response time",
     key: "response_time",
@@ -148,13 +123,7 @@ const columns = computed(() => [
     label: "Resolution time",
     key: "resolution_time",
     isRequired: true,
-  },
-  //   slaData.value.apply_sla_for_resolution && {
-  //     label: "Resolution time",
-  //     key: "resolution_time",
-  //     isRequired: Boolean(slaData.value.apply_sla_for_resolution),
-  //   },
-  // ].filter((c) => c)
+  }
 ]);
 
 const gridTemplateColumns = computed(() => {
