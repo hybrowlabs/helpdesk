@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 import uuid
 from email.utils import parseaddr
 from functools import lru_cache
@@ -1416,11 +1417,16 @@ customer_not_allowed_fields = ["customer"]
 
 
 def close_tickets_after_n_days():
+    close_replied_tickets_after_n_days()
+    close_unassigned_tickets_after_sla_auto_close()
+
+
+
+def close_replied_tickets_after_n_days():
     if frappe.db.get_single_value("HD Settings", "auto_close_tickets") == 0:
         return
 
     days_threshold = frappe.db.get_single_value("HD Settings", "auto_close_after_days")
-
     tickets_to_close = (
         frappe.db.sql(
             """
@@ -1428,7 +1434,7 @@ def close_tickets_after_n_days():
                 FROM `tabHD Ticket` t
                 INNER JOIN (
                     SELECT reference_name, MAX(communication_date) as last_communication_date
-                    FROM `tabCommunication` 
+                    FROM `tabCommunication`
                     WHERE reference_doctype = 'HD Ticket'
                     GROUP BY reference_name
                 ) latest_comm ON t.name = latest_comm.reference_name
@@ -1440,11 +1446,68 @@ def close_tickets_after_n_days():
         )
         or []
     )
-    tickets_to_close = list(set(tickets_to_close))
 
+    close_tickets_by_name(tickets_to_close)
+
+
+
+def close_unassigned_tickets_after_sla_auto_close():
+    ticket_rows = frappe.db.sql(
+        """
+            SELECT
+                t.name,
+                t.creation,
+                sla.auto_close_days
+            FROM `tabHD Ticket` t
+            INNER JOIN `tabHD Service Level Agreement` sla
+                ON sla.name = t.sla
+            INNER JOIN `tabToDo` todo
+                ON todo.reference_type = 'HD Ticket'
+                AND todo.reference_name = t.name
+                AND todo.status = 'Open'
+                AND (todo.allocated_to IS NULL OR todo.allocated_to = '')
+            WHERE t.status NOT IN ('Closed', 'Archived', 'Requested Closure', 'Resolved')
+                AND t.sla IS NOT NULL
+                AND t.sla != ''
+            GROUP BY t.name, t.creation, sla.auto_close_days
+        """,
+        as_dict=True,
+    ) or []
+
+    now = frappe.utils.now_datetime()
+    tickets_to_close = []
+
+    for ticket in ticket_rows:
+        auto_close_delta = get_auto_close_timedelta(ticket.auto_close_days)
+        if not auto_close_delta:
+            continue
+
+        creation_time = frappe.utils.get_datetime(ticket.creation)
+        if creation_time and now >= creation_time + auto_close_delta:
+            tickets_to_close.append(ticket.name)
+
+    close_tickets_by_name(tickets_to_close)
+
+
+
+def get_auto_close_timedelta(auto_close_days):
+    if auto_close_days in (None, '', 0):
+        return None
+
+    if isinstance(auto_close_days, (int, float)):
+        return timedelta(seconds=auto_close_days)
+
+    if isinstance(auto_close_days, str) and auto_close_days.isdigit():
+        return timedelta(seconds=int(auto_close_days))
+
+    return frappe.utils.get_timedelta(auto_close_days)
+
+
+
+def close_tickets_by_name(ticket_names):
     # cant do set_value because SLA will not be applied as setting directly to db and doc is not running.
-    for ticket in tickets_to_close:
-        doc = frappe.get_doc("HD Ticket", ticket)
+    for ticket_name in set(ticket_names):
+        doc = frappe.get_doc("HD Ticket", ticket_name)
         doc.status = "Closed"
         doc.flags.ignore_validate = True
         doc.save(ignore_permissions=True)

@@ -69,7 +69,12 @@
   "feedback_rating",
   "feedback",
   "feedback_extra",
-  "meta_tab"
+  "meta_tab",
+  "tab_8_tab",
+  "form_data_section",
+  "creation_form_data",
+  "feedback_form_data",
+  "closing_form_data"
  ],
  "fields": [
   {
@@ -482,14 +487,42 @@
    "label": "Key",
    "read_only": 1,
    "set_only_once": 1
+  },
+  {
+   "fieldname": "tab_8_tab",
+   "fieldtype": "Tab Break",
+   "label": "Form"
+  },
+  {
+   "fieldname": "form_data_section",
+   "fieldtype": "Section Break",
+   "label": "Form Data"
+  },
+  {
+   "fieldname": "creation_form_data",
+   "fieldtype": "Code",
+   "label": "Creation Form Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "feedback_form_data",
+   "fieldtype": "Code",
+   "label": "Feedback Form Data",
+   "read_only": 1
+  },
+  {
+   "fieldname": "closing_form_data",
+   "fieldtype": "Code",
+   "label": "Closing Form Data",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "icon": "fa fa-issue",
  "idx": 61,
  "links": [],
- "modified": "2026-04-16 01:23:46.704647",
- "modified_by": "ambreen@test.com",
+ "modified": "2026-04-18 07:55:01.172616",
+ "modified_by": "Administrator",
  "module": "Helpdesk",
  "name": "HD Ticket",
  "naming_rule": "Autoincrement",
