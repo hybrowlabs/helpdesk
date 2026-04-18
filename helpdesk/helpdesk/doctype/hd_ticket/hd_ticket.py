@@ -80,38 +80,87 @@ class HDTicket(Document):
 
     def handle_status_auto_update(self):
         """
-        Auto-update ticket status based on:
-        1. custom_archived checkbox → status = "Archived"
-        2. Resolution added + status != "Closed" → status = "Requested Closure"
-        3. No assignee + active status → status = "Not Assigned"
+        Auto-update ticket status based on ticket state. Priority order:
+        1. Archived  — custom_archived flag forces "Archived"
+        2. Closed / Resolved — terminal; never auto-changed
+        3. Requested Closure — resolution_details present
+        4. Replied — preserved; owned by sync_status_after_agent_reply
+        5. Open / Not Assigned / Reopened — driven by assignee presence
         """
-        # Priority 1: Archived takes precedence
+        # Priority 1: Archived flag overrides everything
         if getattr(self, "custom_archived", None):
             if self.status != "Archived":
                 self.status = "Archived"
             return
 
-        # Priority 2: Resolution added → Requested Closure (skip if already Closed/Archived)
-        if self.status not in ("Closed", "Archived"):
-            if self.resolution_details:
-                self.status = "Requested Closure"
+        # Priority 2: Terminal statuses — never auto-change
+        if self.status in ("Closed", "Resolved"):
+            return
+
+        prev = self.get_doc_before_save()
+        prev_status = prev.status if prev else None
+        reopening_from_terminal = prev_status in ("Closed", "Resolved", "Archived")
+
+        # Clear stale resolution data when the ticket is transitioning out of a
+        # terminal state (i.e. being reopened).  Without this, the old
+        # resolution_details would immediately push the ticket back to
+        # "Requested Closure" on every subsequent save.
+        if reopening_from_terminal and self.resolution_details:
+            self.resolution_details = None
+            self.resolution_submitted = 0
+            self.resolution_submitted_on = None
+
+        # Normalize resolution_details: a Text Editor field emits empty HTML
+        # like "<p></p>" or "<p><br></p>" when cleared. Treat these as absent
+        # so Priority 3 doesn't incorrectly force "Requested Closure".
+        if self.resolution_details:
+            _text = BeautifulSoup(self.resolution_details, "html.parser").get_text(strip=True)
+            if not _text:
+                self.resolution_details = None
+
+        # Priority 3: Resolution details → Requested Closure, but only when:
+        #   a) resolution was just added/changed now  (auto-suggest closure), OR
+        #   b) status is already "Requested Closure"  (keep it there on re-saves).
+        # If the user has explicitly moved the status elsewhere (e.g. Closed, Reopened,
+        # Open) while resolution_details is still present, respect their choice —
+        # don't pull it back to "Requested Closure" on every save.
+        if self.resolution_details:
+            resolution_just_changed = self.has_value_changed("resolution_details")
+            if resolution_just_changed or self.status == "Requested Closure":
+                if self.status != "Requested Closure":
+                    self.status = "Requested Closure"
                 return
-            if not self.resolution_details:
-                self.status = "Open"
 
-        
+        # Priority 4: Replied status is owned by sync_status_after_agent_reply — don't touch
+        if self.status == "Replied":
+            return
 
-        # Priority 3: No assignee → Not Assigned (only for active/open states)
-        _terminal_statuses = ("Closed", "Archived", "Requested Closure", "Resolved")
-        if self.status not in _terminal_statuses:
-            has_assignee = frappe.db.exists("ToDo", {
-                "reference_type": "HD Ticket",
-                "reference_name": self.name,
-                "allocated_to": ["is", "set"],
-                "status": "Open",
-            })
-            if not has_assignee:
-                self.status = "Not Assigned"
+        # Priority 5: Drive Open / Not Assigned / Reopened by assignee presence.
+        # Use self._assign (the JSON assignment field) instead of querying open ToDos.
+        # ToDos are closed by sync_todo_status when a ticket closes, but on_update (which
+        # reopens them) hasn't run yet during before_save — making the open-ToDo query
+        # unreliable and causing assigned agents to appear absent during a reopen.
+        try:
+            # _assign is a Frappe virtual field that may be absent when the doc
+            # is reconstructed from form JSON.  Fall back to the DB value so that
+            # existing assignees are not missed.
+            _assign = getattr(self, "_assign", None) or frappe.db.get_value(
+                "HD Ticket", self.name, "_assign"
+            )
+            has_assignee = bool(_assign and json.loads(_assign))
+        except (json.JSONDecodeError, TypeError):
+            has_assignee = False
+
+        if not has_assignee:
+            self.status = "Not Assigned"
+        elif reopening_from_terminal:
+            # Transitioning out of Closed/Resolved/Archived with an assignee → Reopened
+            self.status = "Reopened"
+        elif self.status in ("Not Assigned", "Requested Closure"):
+            # Assignee just added (was Not Assigned) or resolution cleared (was Requested
+            # Closure) → back to Open
+            self.status = "Open"
+        # else: preserve current active status (Open, Reopened, …)
 
     def handle_resolution_submission(self):
         """
@@ -257,14 +306,19 @@ class HDTicket(Document):
 
     def sync_todo_status(self):
         """Close linked ToDos when ticket is closed; reopen them when ticket is reopened."""
-        if self.status == "Closed":
+        if self.status in ("Closed", "Archived"):
             todos = frappe.get_all(
                 "ToDo",
                 filters={"reference_type": "HD Ticket", "reference_name": self.name, "status": "Open"},
                 pluck="name",
             )
             for todo_name in todos:
-                frappe.db.set_value("ToDo", todo_name, "status", "Closed")
+                frappe.db.set_value(
+                    "ToDo",
+                    todo_name,
+                    "status",
+                    "Cancelled" if self.status == "Archived" else "Closed",
+                )
         elif self.status in ("Open", "Reopened"):
             todos = frappe.get_all(
                 "ToDo",
