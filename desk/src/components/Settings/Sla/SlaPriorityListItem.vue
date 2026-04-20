@@ -10,14 +10,8 @@
       :key="column.key"
       class="w-full overflow-hidden whitespace-nowrap text-ellipsis"
     >
-      <div v-if="column.key === 'default_priority'">
-        <Checkbox
-          v-model="props.row.default_priority"
-          @update:modelValue="(e) => onDefaultPriorityChange(e)"
-        />
-      </div>
       <div
-        v-else-if="
+        v-if="
           column.key === 'response_time' || column.key === 'resolution_time'
         "
       >
@@ -37,13 +31,7 @@
           </template>
         </Popover>
       </div>
-      <div v-else>
-        <Select
-          class="w-full bg-transparent cursor-pointer border-0 focus-visible:!ring-0 bg-none"
-          :options="priorityOptions"
-          v-model="props.row[column.key]"
-        />
-      </div>
+
     </div>
     <div class="flex justify-end">
       <Dropdown placement="right" :options="dropdownOptions">
@@ -63,7 +51,7 @@
 import DurationPicker from "@/components/frappe-ui/DurationPicker.vue";
 import { slaData } from "@/stores/sla";
 import { ConfirmDelete } from "@/utils";
-import { Button, Checkbox, Popover, Select } from "frappe-ui";
+import { Button, Popover } from "frappe-ui";
 import { inject, ref } from "vue";
 import EditResponseResolutionModal from "./Modals/EditResponseResolutionModal.vue";
 import { formatTimeHMS } from "./utils";
@@ -89,7 +77,7 @@ const priorityData = ref({
   priority: props.row.priority,
   resolution_time: props.row.resolution_time,
   response_time: props.row.response_time,
-  default_priority: props.row.default_priority,
+  default_priority: props.row.default_priority
 });
 
 const priorityOptions = inject<Array<any>>("priorityOptions");
@@ -100,10 +88,10 @@ const dropdownOptions = [
     onClick: () => editItem(),
     icon: "edit",
   },
-  ...ConfirmDelete({
-    onConfirmDelete: () => deleteItem(),
-    isConfirmingDelete,
-  }),
+  // ...ConfirmDelete({
+  //   onConfirmDelete: () => deleteItem(),
+  //   isConfirmingDelete,
+  // }),
 ];
 
 const gridTemplateColumns = inject<string>("gridTemplateColumns");
@@ -126,7 +114,7 @@ const editItem = () => {
     priority: props.row.priority,
     resolution_time: props.row.resolution_time,
     response_time: props.row.response_time,
-    default_priority: props.row.default_priority,
+    default_priority: props.row.default_priority
   };
 };
 
