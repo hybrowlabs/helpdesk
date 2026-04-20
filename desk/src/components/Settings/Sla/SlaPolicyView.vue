@@ -196,6 +196,12 @@
             class="text-ink-gray-6 text-base font-medium"
           />
           <Checkbox
+            label="Assign to Direct Line Manager"
+            :model-value="slaData.custom_assign_to_direct_line_manager"
+            @update:model-value="(val) => slaData.custom_assign_to_direct_line_manager = val"
+            class="text-ink-gray-6 text-base font-medium"
+          />
+          <Checkbox
             label="Assign to HOD"
             :model-value="slaData.custom_assign_to_hod"
             @update:model-value="(val) => slaData.custom_assign_to_hod = val"
@@ -205,6 +211,24 @@
             label="Assign to HRBP"
             :model-value="slaData.custom_assign_to_hrbp"
             @update:model-value="(val) => slaData.custom_assign_to_hrbp = val"
+            class="text-ink-gray-6 text-base font-medium"
+          />
+          <Checkbox
+            label="Assign to L2 Manager"
+            :model-value="slaData.custom_assign_to_l2_manger"
+            @update:model-value="(val) => slaData.custom_assign_to_l2_manger = val"
+            class="text-ink-gray-6 text-base font-medium"
+          />
+          <Checkbox
+            label="Assign to L3 Manager"
+            :model-value="slaData.custom_assign_to_l3_manger"
+            @update:model-value="(val) => slaData.custom_assign_to_l3_manger = val"
+            class="text-ink-gray-6 text-base font-medium"
+          />
+          <Checkbox
+            label="Assign to CXO"
+            :model-value="slaData.custom_assign_to_cxo"
+            @update:model-value="(val) => slaData.custom_assign_to_cxo = val"
             class="text-ink-gray-6 text-base font-medium"
           />
           <Checkbox
@@ -459,8 +483,12 @@ const teamOptions = ref([]);
 
 const assignmentPriorityOptions = [
   { label: "Direct Manager First", value: "Direct Manager First" },
+  { label: "Direct Line Manager First", value: "Direct Line Manager First" },
   { label: "HOD First", value: "HOD First" },
   { label: "HRBP First", value: "HRBP First" },
+  { label: "L2 Manager First", value: "L2 Manager First" },
+  { label: "L3 Manager First", value: "L3 Manager First" },
+  { label: "CXO First", value: "CXO First" },
   { label: "Round Robin", value: "Round Robin" },
 ];
 
@@ -475,8 +503,12 @@ const secondLevelTargetOptions = [
 const hasEmployeeAssignment = computed(() => {
   return (
     slaData.value.custom_assign_to_direct_manager ||
+    slaData.value.custom_assign_to_direct_line_manager ||
     slaData.value.custom_assign_to_hod ||
     slaData.value.custom_assign_to_hrbp ||
+    slaData.value.custom_assign_to_l2_manger ||
+    slaData.value.custom_assign_to_l3_manger ||
+    slaData.value.custom_assign_to_cxo ||
     slaData.value.custom_assign_to_manager_of_raiser
   );
 });
@@ -511,8 +543,12 @@ const getSlaData = createResource({
       condition_json: condition_json,
       // Add custom fields with defaults
       custom_assign_to_direct_manager: data.custom_assign_to_direct_manager || false,
+      custom_assign_to_direct_line_manager: data.custom_assign_to_direct_line_manager || false,
       custom_assign_to_hod: data.custom_assign_to_hod || false,
       custom_assign_to_hrbp: data.custom_assign_to_hrbp || false,
+      custom_assign_to_l2_manger: data.custom_assign_to_l2_manger || false,
+      custom_assign_to_l3_manger: data.custom_assign_to_l3_manger || false,
+      custom_assign_to_cxo: data.custom_assign_to_cxo || false,
       custom_assign_to_manager_of_raiser: data.custom_assign_to_manager_of_raiser || false,
       custom_assignment_priority: data.custom_assignment_priority || "Direct Manager First",
       custom_fallback_team: data.custom_fallback_team || "",
@@ -754,6 +790,15 @@ watch(
 );
 
 watch(
+  () => slaData.value.custom_assign_to_direct_line_manager,
+  (newVal, oldVal) => {
+    if (newVal && !oldVal) {
+      slaData.value.custom_assignment_priority = "Direct Line Manager First";
+    }
+  }
+);
+
+watch(
   () => slaData.value.custom_assign_to_hod,
   (newVal, oldVal) => {
     if (newVal && !oldVal) {
@@ -767,6 +812,33 @@ watch(
   (newVal, oldVal) => {
     if (newVal && !oldVal) {
       slaData.value.custom_assignment_priority = "HRBP First";
+    }
+  }
+);
+
+watch(
+  () => slaData.value.custom_assign_to_l2_manger,
+  (newVal, oldVal) => {
+    if (newVal && !oldVal) {
+      slaData.value.custom_assignment_priority = "L2 Manager First";
+    }
+  }
+);
+
+watch(
+  () => slaData.value.custom_assign_to_l3_manger,
+  (newVal, oldVal) => {
+    if (newVal && !oldVal) {
+      slaData.value.custom_assignment_priority = "L3 Manager First";
+    }
+  }
+);
+
+watch(
+  () => slaData.value.custom_assign_to_cxo,
+  (newVal, oldVal) => {
+    if (newVal && !oldVal) {
+      slaData.value.custom_assignment_priority = "CXO First";
     }
   }
 );

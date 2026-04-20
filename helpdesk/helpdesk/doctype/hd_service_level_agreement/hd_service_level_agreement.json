@@ -23,6 +23,7 @@
   "response_and_resolution_time_section",
   "apply_sla_for_resolution",
   "priorities",
+  "auto_close_days",
   "status_details",
   "sla_fulfilled_on",
   "column_break_22",
@@ -173,10 +174,15 @@
    "fieldtype": "Code",
    "label": "Condition",
    "max_height": "1rem"
+  },
+  {
+   "fieldname": "auto_close_days",
+   "fieldtype": "Duration",
+   "label": "Auto Close Days"
   }
  ],
  "links": [],
- "modified": "2025-07-29 17:39:19.665610",
+ "modified": "2026-04-16 19:41:05.519860",
  "modified_by": "Administrator",
  "module": "Helpdesk",
  "name": "HD Service Level Agreement",
@@ -218,6 +224,7 @@
   }
  ],
  "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

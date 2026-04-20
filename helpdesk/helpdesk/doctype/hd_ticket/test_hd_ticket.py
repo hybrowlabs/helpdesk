@@ -5,6 +5,7 @@ import frappe
 from frappe.tests import IntegrationTestCase
 from frappe.utils import add_to_date, getdate
 
+from helpdesk.helpdesk.doctype.hd_ticket.hd_ticket import close_tickets_after_n_days
 from helpdesk.test_utils import (
     add_holiday,
     get_current_week_monday,
@@ -315,6 +316,30 @@ class TestHDTicket(IntegrationTestCase):
 
         self.assertEqual(expected_response_by, ticket.response_by)
         self.assertEqual(expected_resolution_by, ticket.resolution_by)
+
+    def test_close_unassigned_ticket_after_sla_auto_close(self):
+        sla_name = "Auto Close SLA"
+        if frappe.db.exists("HD Service Level Agreement", sla_name):
+            frappe.delete_doc("HD Service Level Agreement", sla_name, force=1)
+
+        sla = frappe.get_doc("HD Service Level Agreement", "Default")
+        sla = frappe.copy_doc(sla)
+        sla.service_level = sla_name
+        sla.default_sla = 0
+        sla.condition = "doc.subject == 'Auto Close Unassigned Ticket'"
+        sla.auto_close_days = 60
+        sla.insert(ignore_permissions=True)
+
+        ticket = make_ticket(subject="Auto Close Unassigned Ticket")
+        old_creation = add_to_date(ticket.creation, minutes=-2)
+        frappe.db.set_value(
+            "HD Ticket", ticket.name, "creation", old_creation, update_modified=False
+        )
+
+        close_tickets_after_n_days()
+
+        ticket.reload()
+        self.assertEqual(ticket.status, "Closed")
 
     def test_response_resolution_with_holdtime(self):
         mock_date = add_to_date(get_current_week_monday(hours=0), days=3, hours=15)
