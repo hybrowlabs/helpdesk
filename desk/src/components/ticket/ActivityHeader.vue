@@ -6,7 +6,7 @@
       {{ title }}
     </div>
     <Button
-      v-if="title == 'Emails'"
+      v-if="title == 'Emails' && ticketStatus !== 'Closed'"
       variant="solid"
       @click="communicationAreaRef.toggleEmailBox()"
     >
@@ -16,7 +16,7 @@
       <span>{{ "New Email" }}</span>
     </Button>
     <Button
-      v-else-if="title == 'Comments'"
+      v-else-if="title == 'Comments' && ticketStatus !== 'Closed'"
       variant="solid"
       @click="communicationAreaRef.toggleCommentBox()"
     >
@@ -25,7 +25,7 @@
       </template>
       <span>{{ "New Comment" }}</span>
     </Button>
-    <Dropdown v-else :options="defaultActions" @click.stop>
+    <Dropdown v-else-if="ticketStatus !== 'Closed'" :options="defaultActions" @click.stop>
       <template v-slot="{ open }">
         <Button variant="solid" class="flex items-center gap-1">
           <template #prefix>
@@ -52,6 +52,10 @@ defineProps({
   title: {
     type: String,
     required: true,
+  },
+  ticketStatus: {
+    type: String,
+    default: "",
   },
 });
 
