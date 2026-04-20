@@ -136,6 +136,62 @@ def reopen_ticket(ticket_id: str, reopen_reason: str = ""):
     return {"success": True, "message": "Ticket reopened successfully"}
 
 
+@frappe.whitelist()
+def close_ticket(ticket_id: str, resolution_notes: str = "", feedback_form_data: str = "", closing_form_data: str = ""):
+    """
+    Close a ticket with resolution notes, feedback, and form data.
+    This can be called by authorized users.
+    
+    Parameters:
+    - ticket_id: ID of the ticket to close
+    - resolution_notes: Resolution details
+    - feedback_form_data: JSON string or dict containing feedback form data
+    - closing_form_data: JSON string or dict containing closing form data
+    """
+    ticket_doc = frappe.get_doc("HD Ticket", ticket_id)
+    user = frappe.session.user
+
+
+    # Store resolution notes
+    if resolution_notes:
+        ticket_doc.resolution = resolution_notes
+
+    
+    if feedback_form_data:
+        # Handle both string and dict formats
+        if isinstance(feedback_form_data, str):
+            ticket_doc.feedback_form_data = feedback_form_data
+        else:
+            import json
+            ticket_doc.feedback_form_data = json.dumps(feedback_form_data)
+    
+    if closing_form_data:
+        # Handle both string and dict formats
+        if isinstance(closing_form_data, str):
+            ticket_doc.closing_form_data = closing_form_data
+        else:
+            import json
+            ticket_doc.closing_form_data = json.dumps(closing_form_data)
+
+    # Set status to closed
+    ticket_doc.status = "Closed"
+    ticket_doc.resolution_date = frappe.utils.now_datetime()
+    ticket_doc.save(ignore_permissions=True)
+
+
+    # Send notification to ticket raiser if closed by agent
+    if is_agent(user) and user != ticket_doc.raised_by:
+        _notify_customer_of_closure(ticket_doc, resolution_notes)
+
+    return {
+        "success": True,
+        "message": "Ticket closed successfully",
+        "ticket_id": ticket_id,
+        "status": "Closed",
+        "closed_by": user,
+        "closed_at": frappe.utils.now_datetime()
+    }
+
 def _can_reopen_ticket(ticket_doc, user):
     """
     Check if user can reopen this ticket
