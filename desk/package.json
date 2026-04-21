@@ -9,6 +9,9 @@
     "serve": "vite preview"
   },
   "dependencies": {
+    "@formio/core": "^1.2.0",
+    "@formio/js": "^5.3.3",
+    "@formio/vue": "^6.1.3",
     "@headlessui/vue": "^1.7.22",
     "@iconify-json/lucide": "^1.1.99",
     "@iconify-json/ph": "^1.1.5",

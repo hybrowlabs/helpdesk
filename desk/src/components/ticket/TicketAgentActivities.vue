@@ -1,5 +1,5 @@
 <template>
-  <ActivityHeader :title="title" :ticket-status="ticketStatus" />
+  <ActivityHeader :title="title" :ticket-status="ticketStatus" :ticket="ticket" />
   <FadedScrollableDiv class="flex flex-col flex-1 overflow-y-scroll">
     <div v-if="activities.length" class="activities flex-1 h-full mt-1">
       <div
@@ -106,6 +106,10 @@ const props = defineProps({
   ticketStatus: {
     type: String,
     default: "",
+  },
+  ticket: {
+    type: Object,
+    default: () => ({}),
   },
 });
 

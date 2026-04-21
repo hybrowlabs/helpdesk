@@ -134,6 +134,7 @@
                 :activities="filterActivities(tab.name)"
                 :title="tab.label"
                 :ticket-status="ticket.data?.status"
+                :ticket="ticket.data"
                 @update="
                   () => {
                     ticket.reload();

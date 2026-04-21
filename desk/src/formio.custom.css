@@ -1,0 +1,430 @@
+/* Target only your formio container */
+[data-testid="formioContainer"] .table {
+    border: none !important;
+    border-collapse: collapse !important;
+}
+
+[data-testid="formioContainer"] .table th,
+[data-testid="formioContainer"] .table td {
+    border: 1px solid #e5e7eb !important;
+    /* light gray */
+    padding: 6px 10px !important;
+    font-size: 14px !important;
+    vertical-align: middle !important;
+}
+
+/* Header row */
+[data-testid="formioContainer"] .table thead th {
+    background: #f9fafb !important;
+    font-weight: 600 !important;
+    color: #374151 !important;
+    border-bottom: 1px solid #e5e7eb !important;
+}
+
+/* Input fields */
+[data-testid="formioContainer"] .form-control {
+    border: 1px solid #d1d5db !important;
+    border-radius: 6px !important;
+    font-size: 14px !important;
+    padding: 6px 8px !important;
+    box-shadow: none !important;
+}
+
+[data-testid="formioContainer"] .form-control:focus {
+    border-color: #6366f1 !important;
+    outline: none !important;
+    box-shadow: 0 0 0 1px #6366f1 !important;
+}
+
+/* Buttons */
+[data-testid="formioContainer"] .formio-button-add-row {
+    background: white !important;
+    border: 1px solid #d1d5db !important;
+    color: #374151 !important;
+    font-size: 13px !important;
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    font-weight: 500 !important;
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    align-items: center;
+    font-weight: 400 !important;
+}
+
+[data-testid="formioContainer"] .formio-button-add-row:hover {
+    background: #f3f4f6 !important;
+}
+
+[data-testid="formioContainer"] .formio-button-remove-row {
+    background: transparent !important;
+    border: none !important;
+    color: #ef4444 !important;
+    padding: 8px !important;
+    border-radius: 6px !important;
+    font-size: 18px !important;
+    font-family: "Font Awesome 5 Free";
+    font-weight: 400 !important;
+}
+
+[data-testid="formioContainer"] .formio-button-remove-row:hover {
+    background: #fee2e2 !important;
+}
+
+[data-testid="formioContainer"].profile-form .choices__item {
+    /* background: #f0f0f0 !important; */
+    border: none !important;
+    outline: none !important;
+    /* padding: 6px !important; */
+    color: rgb(79, 79, 79) !important;
+    /* margin: 2px !important; */
+}
+
+/* 
+ [data-testid="formioContainer"].profile-form .choices__item .formio-select-item {
+   background-color: #6366f1 !important;
+} */
+/* Container */
+[data-testid="formioContainer"].profile-form .choices__item .formio-select-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+/* First row */
+.formio-select-item-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+/* Name */
+.formio-select-item-main .primary {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+/* Optional secondary text */
+.formio-select-item-main .secondary {
+    font-size: 13px;
+    font-weight: 400;
+    color: #666;
+}
+
+/* Second line: designation | branch */
+.formio-select-item-info span {
+    font-size: 12px;
+    font-weight: 400;
+    color: #888;
+}
+
+[data-testid="formioContainer"].profile-form .choices__item .choices__button {
+    filter: invert(1) !important;
+    border: none !important;
+}
+
+.field-required:after {
+    display: none !important;
+}
+
+chatnext-app .field-required::after,
+chatnext-app.field-required::after {
+    display: initial !important;
+    /* or whatever original value should be */
+}
+
+.show-req-astrik .field-required::after {
+    display: initial !important;
+}
+
+.form-control.input {
+    border-radius: 4px 0 0 4px !important;
+}
+
+@media (max-width: 768px) {
+
+    /* Scoped to the overtime form specifically */
+    .overtime-request-form .formio-component-overtime_details table {
+        display: block;
+    }
+
+    .overtime-request-form .formio-component-overtime_details table thead {
+        display: none;
+    }
+
+    .overtime-request-form .formio-component-overtime_details table tbody {
+        display: block;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #6b7280;
+        display: block;
+        margin-bottom: 4px;
+    }
+
+    .overtime-request-form .formio-component-overtime_details table tbody tr {
+        display: flex;
+        flex-direction: column;
+        background: white;
+        margin-bottom: 16px;
+        border: 1px solid #e5e7eb !important;
+        border-radius: 8px;
+        padding: 16px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        position: relative;
+        width: 100%;
+    }
+
+    .overtime-request-form .formio-component-overtime_details table tbody td {
+        display: block;
+        width: 100%;
+        border: none !important;
+        padding: 8px 0 !important;
+    }
+
+    /* Add labels via pseudo-elements matching schema order */
+    .overtime-request-form .formio-component-overtime_details table tbody td:nth-child(1)::before {
+        content: "Start Date";
+    }
+
+    .overtime-request-form .formio-component-overtime_details table tbody td:nth-child(2)::before {
+        content: "Start Time";
+    }
+
+    .overtime-request-form .formio-component-overtime_details table tbody td:nth-child(3)::before {
+        content: "End Date";
+    }
+
+    .overtime-request-form .formio-component-overtime_details table tbody td:nth-child(4)::before {
+        content: "End Time";
+    }
+
+    .overtime-request-form .formio-component-overtime_details table tbody td:nth-child(5)::before {
+        content: "Message";
+    }
+
+    /* Position the remove button (last column) to top-right */
+    .overtime-request-form .formio-component-overtime_details table tbody td:last-child {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: auto;
+        padding: 0 !important;
+    }
+
+    /* Remove border from New Row container */
+    .overtime-request-form .formio-component-overtime_details table tfoot td {
+        border: none !important;
+        padding-top: 10px !important;
+    }
+
+    /* Enhance Remove Row button with text */
+    .overtime-request-form .formio-button-remove-row {
+        width: auto !important;
+        display: flex !important;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px !important;
+        text-decoration: none !important;
+        border: 1px solid rgba(255, 0, 0, 0.514) !important;
+    }
+
+    .overtime-request-form .formio-button-remove-row::after {
+        content: "Remove Row";
+        font-family:
+            ui-sans-serif,
+            system-ui,
+            -apple-system,
+            BlinkMacSystemFont,
+            "Segoe UI",
+            Roboto,
+            "Helvetica Neue",
+            Arial,
+            sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+    }
+}
+
+
+/* Form container spacing & Layout */
+.formio-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    /* 20px */
+}
+
+/* Remove "Numeric only" hardcoded text natively generated by Form.io for number inputs */
+.formio-component-number .help-block,
+.formio-component-number .form-text.text-muted {
+    display: none !important;
+}
+
+/* Labels */
+.formio-form label,
+.formio-component label {
+    font-size: 0.875rem;
+    /* 14px */
+    font-weight: 500;
+    color: #374151;
+    /* gray-700 */
+    margin-bottom: 0.375rem;
+    /* 6px */
+    display: block;
+}
+
+/* Inputs, Textareas, Selects */
+.formio-form input:not([type="checkbox"]):not([type="radio"]),
+.formio-form textarea,
+.formio-form select,
+.formio-component input:not([type="checkbox"]):not([type="radio"]),
+.formio-component textarea,
+.formio-component select {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    /* 8px 12px */
+    border: 1px solid #d1d5db !important;
+    /* gray-300 */
+    border-radius: 0.375rem !important;
+    /* rounded-md */
+    font-size: 0.875rem !important;
+    /* 14px */
+    color: #111827;
+    /* gray-900 */
+    background-color: #fff;
+    transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+    /* shadow-sm */
+    line-height: 1.5;
+}
+
+/* Focus rings (Frappe UI Primary) */
+.formio-form input:focus,
+.formio-form textarea:focus,
+.formio-form select:focus,
+.formio-component input:focus,
+.formio-component textarea:focus,
+.formio-component select:focus {
+    border-color: #1f2937 !important;
+    /* Gray 800 */
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(31, 41, 55, 0.15) !important;
+    /* subtle focus ring */
+}
+
+/* Checkboxes and Radios */
+.form-check-input,
+.formio-component-checkbox input,
+.formio-component-radio input {
+    width: 1rem;
+    height: 1rem;
+    border: 1px solid #d1d5db;
+    border-radius: 0.25rem;
+    margin-right: 0.5rem;
+    cursor: pointer;
+}
+
+.form-check-label {
+    cursor: pointer;
+}
+
+/* Readonly fields styling mapped to Frappe standard */
+.formio-form input[readonly],
+.formio-form textarea[readonly],
+.formio-form select[disabled] {
+    background-color: #f9fafb !important;
+    /* gray-50 */
+    cursor: not-allowed;
+    color: #6b7280;
+    /* gray-500 */
+}
+
+/* Help / Description Text */
+.formio-form .help-block,
+.form-text {
+    font-size: 0.75rem;
+    /* 12px */
+    color: #6b7280;
+    /* gray-500 */
+    margin-top: 0.25rem;
+}
+
+/* Form.io Panels & Well containers */
+.formio-component-panel,
+.formio-component-well {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    background-color: #fff;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    margin-bottom: 1rem;
+    overflow: hidden;
+}
+
+.panel-heading.card-header {
+    background-color: #f9fafb;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e5e7eb;
+    font-weight: 600;
+    color: #111827;
+    font-size: 1rem;
+}
+
+.panel-body.card-body,
+.well {
+    padding: 1rem;
+}
+
+/* File component styling */
+.formio-component-file .list-group {
+    border: 1px solid #e5e7eb;
+    border-radius: 0.375rem;
+    padding: 8px;
+    background: #f9fafb;
+}
+
+/* File row */
+.formio-component-file .list-group-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    padding: 6px 0;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.formio-component-file .list-group-item:last-child {
+    border-bottom: none;
+}
+
+/* File name clickable */
+.formio-component-file a {
+    color: #2563eb;
+    /* blue-600 */
+    text-decoration: none;
+}
+
+.formio-component-file a:hover {
+    text-decoration: underline;
+}
+
+/* Remove ugly default table look */
+.formio-component-file table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.formio-component-file th {
+    text-align: left;
+    font-weight: 600;
+    font-size: 13px;
+    color: #374151;
+    padding-bottom: 6px;
+}
+
+.formio-component-file td {
+    padding: 4px 0;
+    font-size: 14px;
+}
+
+.visually-hidden {
+    display: none !important;
+}
