@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 import uuid
 from email.utils import parseaddr
 from functools import lru_cache
@@ -73,8 +74,93 @@ class HDTicket(Document):
         if not self.is_new():
             self.handle_ticket_activity_update()
             self.handle_resolution_submission()
+            self.handle_status_auto_update()
 
         self.handle_email_feedback()
+
+    def handle_status_auto_update(self):
+        """
+        Auto-update ticket status based on ticket state. Priority order:
+        1. Archived  — custom_archived flag forces "Archived"
+        2. Closed / Resolved — terminal; never auto-changed
+        3. Requested Closure — resolution_details present
+        4. Replied — preserved; owned by sync_status_after_agent_reply
+        5. Open / Not Assigned / Reopened — driven by assignee presence
+        """
+        # Priority 1: Archived flag overrides everything
+        if getattr(self, "custom_archived", None):
+            if self.status != "Archived":
+                self.status = "Archived"
+            return
+
+        # Priority 2: Terminal statuses — never auto-change
+        if self.status in ("Closed", "Resolved"):
+            return
+
+        prev = self.get_doc_before_save()
+        prev_status = prev.status if prev else None
+        reopening_from_terminal = prev_status in ("Closed", "Resolved", "Archived")
+
+        # Clear stale resolution data when the ticket is transitioning out of a
+        # terminal state (i.e. being reopened).  Without this, the old
+        # resolution_details would immediately push the ticket back to
+        # "Requested Closure" on every subsequent save.
+        if reopening_from_terminal and self.resolution_details:
+            self.resolution_details = None
+            self.resolution_submitted = 0
+            self.resolution_submitted_on = None
+
+        # Normalize resolution_details: a Text Editor field emits empty HTML
+        # like "<p></p>" or "<p><br></p>" when cleared. Treat these as absent
+        # so Priority 3 doesn't incorrectly force "Requested Closure".
+        if self.resolution_details:
+            _text = BeautifulSoup(self.resolution_details, "html.parser").get_text(strip=True)
+            if not _text:
+                self.resolution_details = None
+
+        # Priority 3: Resolution details → Requested Closure, but only when:
+        #   a) resolution was just added/changed now  (auto-suggest closure), OR
+        #   b) status is already "Requested Closure"  (keep it there on re-saves).
+        # If the user has explicitly moved the status elsewhere (e.g. Closed, Reopened,
+        # Open) while resolution_details is still present, respect their choice —
+        # don't pull it back to "Requested Closure" on every save.
+        if self.resolution_details:
+            resolution_just_changed = self.has_value_changed("resolution_details")
+            if resolution_just_changed or self.status == "Requested Closure":
+                if self.status != "Requested Closure":
+                    self.status = "Requested Closure"
+                return
+
+        # Priority 4: Replied status is owned by sync_status_after_agent_reply — don't touch
+        if self.status == "Replied":
+            return
+
+        # Priority 5: Drive Open / Not Assigned / Reopened by assignee presence.
+        # Use self._assign (the JSON assignment field) instead of querying open ToDos.
+        # ToDos are closed by sync_todo_status when a ticket closes, but on_update (which
+        # reopens them) hasn't run yet during before_save — making the open-ToDo query
+        # unreliable and causing assigned agents to appear absent during a reopen.
+        try:
+            # _assign is a Frappe virtual field that may be absent when the doc
+            # is reconstructed from form JSON.  Fall back to the DB value so that
+            # existing assignees are not missed.
+            _assign = getattr(self, "_assign", None) or frappe.db.get_value(
+                "HD Ticket", self.name, "_assign"
+            )
+            has_assignee = bool(_assign and json.loads(_assign))
+        except (json.JSONDecodeError, TypeError):
+            has_assignee = False
+
+        if not has_assignee:
+            self.status = "Not Assigned"
+        elif reopening_from_terminal:
+            # Transitioning out of Closed/Resolved/Archived with an assignee → Reopened
+            self.status = "Reopened"
+        elif self.status in ("Not Assigned", "Requested Closure"):
+            # Assignee just added (was Not Assigned) or resolution cleared (was Requested
+            # Closure) → back to Open
+            self.status = "Open"
+        # else: preserve current active status (Open, Reopened, …)
 
     def handle_resolution_submission(self):
         """
@@ -203,20 +289,44 @@ class HDTicket(Document):
 
     def on_update(self):
         # flake8: noqa
-        if self.status == "Open":
-            if (
-                self.get_doc_before_save()
-                and self.get_doc_before_save().status != "Open"
-            ):
+        prev = self.get_doc_before_save()
+        prev_status = prev.status if prev else None
 
-                agents = self.get_assigned_agents()
-                if agents:
-                    for agent in agents:
-                        self.notify_agent(agent.name, "Reaction")
+        if self.status == "Open" and prev_status and prev_status != "Open":
+            agents = self.get_assigned_agents()
+            if agents:
+                for agent in agents:
+                    self.notify_agent(agent.name, "Reaction")
+
+        self.sync_todo_status()
 
         self.remove_assignment_if_not_in_team()
         self.publish_update()
         self.update_search_index()
+
+    def sync_todo_status(self):
+        """Close linked ToDos when ticket is closed; reopen them when ticket is reopened."""
+        if self.status in ("Closed", "Archived"):
+            todos = frappe.get_all(
+                "ToDo",
+                filters={"reference_type": "HD Ticket", "reference_name": self.name, "status": "Open"},
+                pluck="name",
+            )
+            for todo_name in todos:
+                frappe.db.set_value(
+                    "ToDo",
+                    todo_name,
+                    "status",
+                    "Cancelled" if self.status == "Archived" else "Closed",
+                )
+        elif self.status in ("Open", "Reopened"):
+            todos = frappe.get_all(
+                "ToDo",
+                filters={"reference_type": "HD Ticket", "reference_name": self.name, "status": "Closed"},
+                pluck="name",
+            )
+            for todo_name in todos:
+                frappe.db.set_value("ToDo", todo_name, "status", "Open")
 
     def notify_agent(self, agent, notification_type="Assignment"):
         frappe.get_doc(
@@ -582,6 +692,7 @@ class HDTicket(Document):
 
         communication.insert(ignore_permissions=True)
         capture_event("agent_replied")
+        self.sync_status_after_agent_reply(sender)
 
         if skip_email_workflow:
             return
@@ -646,6 +757,35 @@ class HDTicket(Document):
             )
         except Exception as e:
             frappe.throw(_(e))
+
+    def sync_status_after_agent_reply(self, sender: str):
+        """
+        Persist the post-reply ticket state explicitly.
+        Some downstream hooks can briefly move the ticket back to Open,
+        so the outgoing agent reply path writes the final status directly.
+        """
+        if sender == self.raised_by:
+            return
+
+        if not frappe.db.get_single_value("HD Settings", "auto_update_status"):
+            return
+
+        update_values = {}
+        first_responded_on = self.first_responded_on or frappe.utils.now_datetime()
+
+        if self.status != "Replied":
+            update_values["status"] = "Replied"
+            self.status = "Replied"
+
+        if not self.first_responded_on:
+            update_values["first_responded_on"] = first_responded_on
+            self.first_responded_on = first_responded_on
+
+        if not update_values:
+            return
+
+        frappe.db.set_value("HD Ticket", self.name, update_values, update_modified=True)
+        self.publish_update()
 
     @frappe.whitelist()
     # flake8: noqa
@@ -1445,11 +1585,16 @@ customer_not_allowed_fields = ["customer"]
 
 
 def close_tickets_after_n_days():
+    close_replied_tickets_after_n_days()
+    close_unassigned_tickets_after_sla_auto_close()
+
+
+
+def close_replied_tickets_after_n_days():
     if frappe.db.get_single_value("HD Settings", "auto_close_tickets") == 0:
         return
 
     days_threshold = frappe.db.get_single_value("HD Settings", "auto_close_after_days")
-
     tickets_to_close = (
         frappe.db.sql(
             """
@@ -1457,7 +1602,7 @@ def close_tickets_after_n_days():
                 FROM `tabHD Ticket` t
                 INNER JOIN (
                     SELECT reference_name, MAX(communication_date) as last_communication_date
-                    FROM `tabCommunication` 
+                    FROM `tabCommunication`
                     WHERE reference_doctype = 'HD Ticket'
                     GROUP BY reference_name
                 ) latest_comm ON t.name = latest_comm.reference_name
@@ -1469,11 +1614,68 @@ def close_tickets_after_n_days():
         )
         or []
     )
-    tickets_to_close = list(set(tickets_to_close))
 
+    close_tickets_by_name(tickets_to_close)
+
+
+
+def close_unassigned_tickets_after_sla_auto_close():
+    ticket_rows = frappe.db.sql(
+        """
+            SELECT
+                t.name,
+                t.creation,
+                sla.auto_close_days
+            FROM `tabHD Ticket` t
+            INNER JOIN `tabHD Service Level Agreement` sla
+                ON sla.name = t.sla
+            INNER JOIN `tabToDo` todo
+                ON todo.reference_type = 'HD Ticket'
+                AND todo.reference_name = t.name
+                AND todo.status = 'Open'
+                AND (todo.allocated_to IS NULL OR todo.allocated_to = '')
+            WHERE t.status NOT IN ('Closed', 'Archived', 'Requested Closure', 'Resolved')
+                AND t.sla IS NOT NULL
+                AND t.sla != ''
+            GROUP BY t.name, t.creation, sla.auto_close_days
+        """,
+        as_dict=True,
+    ) or []
+
+    now = frappe.utils.now_datetime()
+    tickets_to_close = []
+
+    for ticket in ticket_rows:
+        auto_close_delta = get_auto_close_timedelta(ticket.auto_close_days)
+        if not auto_close_delta:
+            continue
+
+        creation_time = frappe.utils.get_datetime(ticket.creation)
+        if creation_time and now >= creation_time + auto_close_delta:
+            tickets_to_close.append(ticket.name)
+
+    close_tickets_by_name(tickets_to_close)
+
+
+
+def get_auto_close_timedelta(auto_close_days):
+    if auto_close_days in (None, '', 0):
+        return None
+
+    if isinstance(auto_close_days, (int, float)):
+        return timedelta(seconds=auto_close_days)
+
+    if isinstance(auto_close_days, str) and auto_close_days.isdigit():
+        return timedelta(seconds=int(auto_close_days))
+
+    return frappe.utils.get_timedelta(auto_close_days)
+
+
+
+def close_tickets_by_name(ticket_names):
     # cant do set_value because SLA will not be applied as setting directly to db and doc is not running.
-    for ticket in tickets_to_close:
-        doc = frappe.get_doc("HD Ticket", ticket)
+    for ticket_name in set(ticket_names):
+        doc = frappe.get_doc("HD Ticket", ticket_name)
         doc.status = "Closed"
         doc.flags.ignore_validate = True
         doc.save(ignore_permissions=True)

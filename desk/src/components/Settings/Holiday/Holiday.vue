@@ -7,9 +7,9 @@
 
 <script setup lang="ts">
 import { holidayListActiveScreen } from "@/stores/holidayList";
+import { useEmployeeStore } from "@/stores/employee";
 import Holidays from "./Holidays.vue";
 import SimpleHolidayView from "./SimpleHolidayView.vue";
-import { createListResource } from "frappe-ui";
 import { provide } from "vue";
 
 const holidayListData = createListResource({

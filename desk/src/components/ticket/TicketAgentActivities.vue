@@ -1,5 +1,5 @@
 <template>
-  <ActivityHeader :title="title" />
+  <ActivityHeader :title="title" :ticket-status="ticketStatus" />
   <FadedScrollableDiv class="flex flex-col flex-1 overflow-y-scroll">
     <div v-if="activities.length" class="activities flex-1 h-full mt-1">
       <div
@@ -63,12 +63,12 @@
       <component :is="emptyTextIcon" class="h-10 w-10" />
       <span>{{ emptyText }}</span>
       <Button
-        v-if="title == 'Emails'"
+        v-if="title == 'Emails' && ticketStatus !== 'Closed'"
         label="New Email"
         @click="communicationAreaRef.toggleEmailBox()"
       />
       <Button
-        v-else-if="title == 'Comments'"
+        v-else-if="title == 'Comments' && ticketStatus !== 'Closed'"
         label="New Comment"
         @click="communicationAreaRef.toggleCommentBox()"
       />

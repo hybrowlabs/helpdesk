@@ -26,38 +26,10 @@
       </div>
     </div>
   </div>
-  <Dialog
-    :options="{ title: `Duplicate Holiday List` }"
-    v-model="duplicateDialog.show"
-  >
-    <template #body-content>
-      <div class="flex flex-col gap-4">
-        <FormControl
-          label="New Holiday List Name"
-          type="text"
-          v-model="duplicateDialog.name"
-        />
-      </div>
-    </template>
-    <template #actions>
-      <div class="flex gap-2 justify-end">
-        <Button
-          variant="subtle"
-          label="Close"
-          @click="duplicateDialog.show = false"
-        />
-        <Button variant="solid" label="Duplicate" @click="duplicate()" />
-      </div>
-    </template>
-  </Dialog>
 </template>
-<script setup lang="ts">
-import { Button, createResource, toast } from "frappe-ui";
-import { inject, ref } from "vue";
-import { holidayListActiveScreen } from "@/stores/holidayList";
-import { ConfirmDelete } from "@/utils";
 
-const formatDate = (dateStr) => {
+<script setup lang="ts">
+const formatDate = (dateStr: string) => {
   if (!dateStr) return "";
   const date = new Date(dateStr);
   return date.toLocaleDateString('en-US', {
@@ -67,7 +39,7 @@ const formatDate = (dateStr) => {
   });
 };
 
-const props = defineProps({
+defineProps({
   data: {
     type: Object,
     required: true,

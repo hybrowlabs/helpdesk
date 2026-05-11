@@ -33,7 +33,7 @@
       <div v-if="!props.isGroup" class="flex items-center gap-2 w-full">
         <div id="fieldname" class="w-full">
           <Autocomplete
-            :options="filterableFields.data"
+            :options="availableFields"
             v-model="props.condition[0]"
             :placeholder="'Field'"
             @update:modelValue="updateField"
@@ -112,14 +112,16 @@ import { TemplateOption } from "@/utils";
 import {
   Autocomplete,
   Button,
+  createResource,
   DatePicker,
   DateRangePicker,
   DateTimePicker,
   Dialog,
   Dropdown,
   FormControl,
+  toast,
 } from "frappe-ui";
-import { computed, defineEmits, h, ref } from "vue";
+import { computed, h, ref, watch } from "vue";
 import GroupIcon from "~icons/lucide/group";
 import UnGroupIcon from "~icons/lucide/ungroup";
 import CFConditions from "./CFConditions.vue";
@@ -160,7 +162,98 @@ const props = defineProps({
     type: Boolean,
     default: false,
   },
+  conditionsContext: {
+    type: Array<any>,
+    default: () => [],
+  },
 });
+
+const CATEGORY_FIELD = "custom_category";
+const SUBCATEGORY_FIELD = "custom_sub_category";
+
+function getSelectedCategoryFromConditions(conditions: Array<any> = []): string {
+  for (const item of conditions) {
+    if (!Array.isArray(item)) continue;
+
+    if (item.length >= 3 && item[0] === CATEGORY_FIELD && item[2]) {
+      return String(item[2]);
+    }
+
+    const nestedCategory = getSelectedCategoryFromConditions(item);
+    if (nestedCategory) return nestedCategory;
+  }
+
+  return "";
+}
+
+function hasSubcategoryCondition(conditions: Array<any> = []): boolean {
+  for (const item of conditions) {
+    if (!Array.isArray(item)) continue;
+
+    if (item.length >= 1 && item[0] === SUBCATEGORY_FIELD) {
+      return true;
+    }
+
+    if (hasSubcategoryCondition(item)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+const selectedCategory = computed(() =>
+  getSelectedCategoryFromConditions(props.conditionsContext)
+);
+const isCurrentCategoryCondition = computed(
+  () => props.condition?.[0] === CATEGORY_FIELD
+);
+const hasSubcategoryInContext = computed(() =>
+  hasSubcategoryCondition(props.conditionsContext)
+);
+
+const availableFields = computed(() => {
+  const fields = filterableFields.data || [];
+  return fields.filter(
+    (field) => field.fieldname !== SUBCATEGORY_FIELD || !!selectedCategory.value
+  );
+});
+
+const subcategoriesResource = createResource({
+  url: "helpdesk.api.category.search_sub_categories",
+  auto: false,
+  makeParams: () => ({
+    category: selectedCategory.value,
+    txt: "",
+    limit: 100,
+  }),
+  transform: (data) =>
+    (data || []).map((item) => ({
+      label: item.label || item.category_name || item.name,
+      value: item.value || item.name,
+    })),
+});
+
+watch(
+  selectedCategory,
+  (category, previousCategory) => {
+    if (!category) {
+      // Keep existing sub-category value during initial hydration.
+      // It should only be cleared when the selected category actually changes.
+      return;
+    }
+
+    if (props.condition[0] === SUBCATEGORY_FIELD) {
+      const categoryChanged =
+        !!previousCategory && previousCategory !== category;
+      if (categoryChanged) {
+        props.condition[2] = "";
+      }
+      subcategoriesResource.submit();
+    }
+  },
+  { immediate: true }
+);
 
 const dropdownOptions = computed(() => {
   const options = [];
@@ -197,7 +290,9 @@ const dropdownOptions = computed(() => {
           emit("remove");
         },
       }),
-    condition: () => !props.isGroup,
+    condition: () =>
+      !props.isGroup &&
+      !(isCurrentCategoryCondition.value && hasSubcategoryInContext.value),
   });
 
   options.push({
@@ -231,8 +326,26 @@ function toggleConjunction() {
 }
 
 const updateField = (field) => {
-  props.condition[0] = field?.fieldname;
+  const previousField = props.condition[0];
+  const nextField = field?.fieldname || "";
+
+  if (
+    previousField === CATEGORY_FIELD &&
+    nextField !== CATEGORY_FIELD &&
+    hasSubcategoryInContext.value
+  ) {
+    toast.error(
+      "Remove sub-category condition first before removing category condition."
+    );
+    return;
+  }
+
+  props.condition[0] = nextField;
   resetConditionValue();
+
+  if (nextField === SUBCATEGORY_FIELD && selectedCategory.value) {
+    subcategoriesResource.submit();
+  }
 };
 
 const resetConditionValue = () => {
@@ -245,6 +358,21 @@ function getValueControl() {
   const fieldData = filterableFields.data?.find((f) => f.fieldname == field);
   if (!fieldData) return null;
   const { fieldtype, options } = fieldData;
+  if (field === SUBCATEGORY_FIELD) {
+    return h(Link as any, {
+      class: "form-control",
+      doctype: "HD Category",
+      value: props.condition[2],
+      placeholder: "Select sub-category",
+      disabled: !selectedCategory.value,
+      displayField: "category_name",
+      showLabelWithId: true,
+      filters: {
+        is_sub_category: 1,
+        parent_category: selectedCategory.value,
+      },
+    });
+  }
   if (operator == "is") {
     return h(FormControl, {
       type: "select",
@@ -275,7 +403,7 @@ function getValueControl() {
     if (fieldtype == "Dynamic Link") {
       return h(FormControl, { type: "text" });
     }
-    const linkProps = {
+    const linkProps: Record<string, any> = {
       class: "form-control",
       doctype: options,
       value: props.condition[2],
@@ -283,8 +411,9 @@ function getValueControl() {
     // Add display field for HD Category to show category_name instead of ID
     if (options === "HD Category") {
       linkProps.displayField = "category_name";
+      linkProps.showLabelWithId = true;
     }
-    return h(Link, linkProps);
+    return h(Link as any, linkProps);
   } else if (typeNumber.includes(fieldtype)) {
     return h(FormControl, { type: "number" });
   } else if (typeDate.includes(fieldtype) && operator == "between") {

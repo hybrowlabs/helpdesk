@@ -6,7 +6,7 @@
       </template>
       <template #right-header>
         <div class="absolute right-0 pr-2">
-          <Dropdown :options="dropdownOptions">
+          <Dropdown v-if="!ticketStatusStore.makeAgentStatusReadOnly"  :options="dropdownOptions">
             <template #default="{ open }">
               <Button :label="ticket.data.status">
                 <template #prefix>
@@ -23,6 +23,15 @@
               </Button>
             </template>
           </Dropdown>
+                  <div v-else>
+          <Button :label="ticket.data.status">
+            <template #prefix>
+              <IndicatorIcon
+                :class="ticketStatusStore.textColorMap[ticket.data.status]"
+              />
+            </template>
+            </Button>
+            </div>
         </div>
       </template>
     </LayoutHeader>
@@ -66,7 +75,7 @@
                 <!-- ticket contact info -->
                 <TicketAgentContact
                   :contact="ticket.data.contact"
-                  @email:open="communicationAreaRef.toggleEmailBox()"
+                  @email:open="communicationAreaRef?.toggleEmailBox()"
                 />
                 <!-- feedback component -->
                 <TicketFeedback
@@ -100,7 +109,7 @@
                 "
                 @email:reply="
                   (e) => {
-                    communicationAreaRef.replyToEmail(e);
+                    communicationAreaRef?.replyToEmail(e);
                   }
                 "
               />
@@ -363,7 +372,7 @@ const activities = computed(() => {
     }
   );
 
-  const sorted = [...emailProps, ...commentProps, ...historyProps].sort(
+  const sorted = [...emailProps, ...commentProps].sort(
     (a, b) => new Date(a.creation) - new Date(b.creation)
   );
 

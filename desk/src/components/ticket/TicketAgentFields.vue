@@ -25,7 +25,7 @@ const props = defineProps({
 });
 
 const fields = computed(() => {
-  return props.ticket.fields;
+  return props.ticket.fields.filter((field) => field.fieldname !== "priority");
 });
 
 function update(field: Field["fieldname"], value: FieldValue, event = null) {

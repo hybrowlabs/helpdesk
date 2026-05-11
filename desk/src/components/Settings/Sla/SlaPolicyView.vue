@@ -301,34 +301,19 @@
         </span>
       </div>
       <div class="mt-5">
-        <!-- <div class="flex gap-6">
-          <div
-            class="flex items-center gap-2"
-            @click="onApplySlaForChange(false)"
-          >
-            <input
-              name="apply_sla_for"
-              :checked="!slaData.apply_sla_for_resolution"
-              type="radio"
-            />
-            <div class="select-none text-ink-gray-6 text-sm font-medium">
-              Apply SLA for response time
-            </div>
+        <div class="md:w-1/2 mb-5">
+          <FormControl
+            type="number"
+            size="sm"
+            variant="subtle"
+            label="Auto Close Days"
+            v-model="slaData.auto_close_days"
+            placeholder="e.g. 3"
+          />
+          <div class="text-p-sm text-ink-gray-5 mt-1.5 italic">
+            Number of days after which a resolved ticket will be automatically closed.
           </div>
-          <div
-            class="flex items-center gap-2"
-            @click="onApplySlaForChange(true)"
-          >
-            <input
-              name="apply_sla_for"
-              :checked="slaData.apply_sla_for_resolution"
-              type="radio"
-            />
-            <div class="select-none text-ink-gray-6 text-sm font-medium">
-              Apply SLA for response time and resolution time
-            </div>
-          </div>
-        </div> -->
+        </div>
         <div class="mt-5">
           <SlaPriorityList />
         </div>
@@ -388,6 +373,7 @@ import SlaAssignmentConditions from "./SlaAssignmentConditions.vue";
 import SlaHolidays from "./SlaHolidays.vue";
 import SlaPriorityList from "./SlaPriorityList.vue";
 import SlaStatusList from "./SlaStatusList.vue";
+import Link from "@/components/frappe-ui/Link.vue";
 import { disableSettingModalOutsideClick } from "../settingsModal";
 import { useOnboarding } from "frappe-ui/frappe";
 import { FormControl, createResource } from "frappe-ui";
@@ -415,8 +401,12 @@ const teamOptions = ref([]);
 
 const assignmentPriorityOptions = [
   { label: "Direct Manager First", value: "Direct Manager First" },
+  { label: "Direct Line Manager First", value: "Direct Line Manager First" },
   { label: "HOD First", value: "HOD First" },
   { label: "HRBP First", value: "HRBP First" },
+  { label: "L2 Manager First", value: "L2 Manager First" },
+  { label: "L3 Manager First", value: "L3 Manager First" },
+  { label: "CXO First", value: "CXO First" },
   { label: "Round Robin", value: "Round Robin" },
 ];
 
@@ -450,8 +440,12 @@ const getSlaData = createResource({
       condition_json: condition_json,
       // Add custom fields with defaults
       custom_assign_to_direct_manager: data.custom_assign_to_direct_manager || false,
+      custom_assign_to_direct_line_manager: data.custom_assign_to_direct_line_manager || false,
       custom_assign_to_hod: data.custom_assign_to_hod || false,
       custom_assign_to_hrbp: data.custom_assign_to_hrbp || false,
+      custom_assign_to_l2_manger: data.custom_assign_to_l2_manger || false,
+      custom_assign_to_l3_manger: data.custom_assign_to_l3_manger || false,
+      custom_assign_to_cxo: data.custom_assign_to_cxo || false,
       custom_assign_to_manager_of_raiser: data.custom_assign_to_manager_of_raiser || false,
       custom_assignment_priority: data.custom_assignment_priority || "Direct Manager First",
       custom_fallback_team: data.custom_fallback_team || "",
@@ -467,6 +461,7 @@ const getSlaData = createResource({
       custom_second_level_escalation_user: data.custom_second_level_escalation_user || "",
       custom_second_level_escalation_team: data.custom_second_level_escalation_team || "",
       custom_second_level_escalation_delay_hours: data.custom_second_level_escalation_delay_hours || 24,
+      auto_close_days: data.auto_close_days,
     };
     slaData.value = newData;
     slaData.value.apply_sla_for_resolution = true;
@@ -516,7 +511,28 @@ const goBack = () => {
   showConfirmDialog.value.show = false;
 };
 
-const saveSla = () => {
+const checkDuplicateConditionResource = createResource({
+  url: "helpdesk.api.sla.check_duplicate_sla_condition",
+  onSuccess(result) {
+    if (result?.exists) {
+      showConfirmDialog.value = {
+        show: true,
+        title: "Duplicate SLA Condition",
+        message:
+          "SLA policy already exists for this condition. Check Day wise Time condition. At same time you cannot apply same condition.",
+        onConfirm: () => {
+          showConfirmDialog.value.show = false;
+        },
+      };
+    } else {
+      proceedWithSave();
+    }
+  },
+});
+
+const saveSla = async () => {
+  await nextTick();
+
   const validationErrors = validateSlaData(undefined, !useNewUI.value);
 
   if (Object.values(validationErrors).some((error) => error)) {
@@ -526,6 +542,22 @@ const saveSla = () => {
     return;
   }
 
+  if (useNewUI.value && slaData.value.condition_json?.length > 0) {
+    const schedulePayload = (slaData.value.support_and_resolution || []).map(
+      ({ workday, start_time, end_time }) => ({ workday, start_time, end_time })
+    );
+    checkDuplicateConditionResource.submit({
+      condition_json: JSON.stringify(slaData.value.condition_json),
+      support_and_resolution: JSON.stringify(schedulePayload),
+      exclude_name: slaActiveScreen.value.data?.name || null,
+    });
+    return;
+  }
+
+  proceedWithSave();
+};
+
+const proceedWithSave = () => {
   if (slaActiveScreen.value.data) {
     if (isOldSla.value && useNewUI.value) {
       showConfirmDialog.value = {

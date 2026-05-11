@@ -32,7 +32,7 @@
         >
           Assign
         </button>
-        <Dropdown :options="dropdownOptions">
+        <Dropdown v-if="!ticketStatusStore.makeAgentStatusReadOnly" :options="dropdownOptions">
           <template #default="{ open }">
             <Button :label="ticket.data.status">
               <template #prefix>
@@ -49,6 +49,15 @@
             </Button>
           </template>
         </Dropdown>
+        <div v-else>
+          <Button :label="ticket.data.status">
+            <template #prefix>
+              <IndicatorIcon
+                :class="ticketStatusStore.textColorMap[ticket.data.status]"
+              />
+            </template>
+            </Button>
+            </div>
         <!-- Resolution Satisfaction Controls -->
         <div v-if="showResolutionSatisfactionControls" class="flex items-center gap-3 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg max-w-md">
           <div class="flex items-center gap-2 flex-1">
@@ -132,7 +141,7 @@
                 "
                 @email:reply="
                   (e) => {
-                    communicationAreaRef.replyToEmail(e);
+                    communicationAreaRef?.replyToEmail(e);
                   }
                 "
               />
@@ -157,7 +166,7 @@
       <TicketAgentSidebar
         :ticket="ticket.data"
         @update="({ field, value }) => updateTicket(field, value)"
-        @email:open="(e) => communicationAreaRef.toggleEmailBox()"
+        @email:open="(e) => communicationAreaRef?.toggleEmailBox()"
         @reload="ticket.reload()"
       />
     </div>
@@ -684,7 +693,7 @@ const activities = computed(() => {
     }
   );
 
-  const sorted = [...emailProps, ...commentProps, ...historyProps].sort(
+  const sorted = [...emailProps, ...commentProps].sort(
     (a, b) => new Date(a.creation) - new Date(b.creation)
   );
 
