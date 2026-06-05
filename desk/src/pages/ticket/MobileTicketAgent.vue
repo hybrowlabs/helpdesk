@@ -75,7 +75,7 @@
                 <!-- ticket contact info -->
                 <TicketAgentContact
                   :contact="ticket.data.contact"
-                  @email:open="communicationAreaRef.toggleEmailBox()"
+                  @email:open="communicationAreaRef?.toggleEmailBox()"
                 />
                 <!-- feedback component -->
                 <TicketFeedback
@@ -109,7 +109,7 @@
                 "
                 @email:reply="
                   (e) => {
-                    communicationAreaRef.replyToEmail(e);
+                    communicationAreaRef?.replyToEmail(e);
                   }
                 "
               />

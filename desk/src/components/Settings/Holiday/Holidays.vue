@@ -2,16 +2,17 @@
   <div class="px-10 py-8">
     <SettingsLayoutHeader
       title="Business Holidays"
-      description="Set your team’s working days, hours, and holidays using a template or custom schedule."
+      description="Holidays applicable to your team based on your employee profile."
     >
       <template #actions>
-        <Button
+        <!-- Hide New Holiday creation for now can be used later if needed -->
+        <!-- <Button
           label="New"
           theme="gray"
           variant="solid"
           @click="goToNew()"
           icon-left="plus"
-        />
+        /> -->
       </template>
     </SettingsLayoutHeader>
   </div>
