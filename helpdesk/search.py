@@ -160,6 +160,11 @@ class Search:
     ):
         raw_query = query
         query = self.clean_query(query)
+        # An empty query (e.g. the caller reduced the input to stopwords or
+        # stripped every character) makes FT.SEARCH raise "Query syntax error".
+        # Nothing can match an empty query anyway, so short-circuit cleanly.
+        if not query.strip():
+            return frappe._dict(docs=[], total=0, duration=0.0)
         query = Query(query).paging(start, page_length)
         if highlight:
             query = query.highlight()
@@ -218,7 +223,7 @@ class Search:
                 """
                 SELECT name, title, content
                 FROM `tabHD Article`
-                WHERE published = 1
+                WHERE status = 'Published'
                   AND (title LIKE %(q)s OR content LIKE %(q)s)
                 ORDER BY modified DESC
                 LIMIT %(start)s, %(limit)s
@@ -460,6 +465,10 @@ def search(
             query += f"{sep}{part}*"
 
     query = query.lstrip(sep)  # Remove leading separator (| at beginning is invalid)
+    if not query.strip():
+        # Every term was a stopword or got stripped away -> nothing to search.
+        # Avoid sending an empty query to FT.SEARCH ("Query syntax error").
+        return []
     result = search.search(query, start=0, highlight=True)
     groups = {}
     for r in result.docs:
