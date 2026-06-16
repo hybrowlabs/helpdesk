@@ -65,6 +65,7 @@ has_permission = {
 
 permission_query_conditions = {
     "HD Ticket": "helpdesk.helpdesk.doctype.hd_ticket.hd_ticket.permission_query",
+    "HD Category": "helpdesk.api.category.get_permission_query_conditions",
 }
 
 # DocType Class
