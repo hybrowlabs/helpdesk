@@ -22,6 +22,7 @@
   "default_ticket_type",
   "is_ticket_type_mandatory",
   "column_break_zxek",
+  "raised_by_also_include_while_assignment",
   "feedback_section",
   "is_feedback_mandatory",
   "column_break_kegb",
@@ -333,12 +334,18 @@
    "fieldname": "assign_within_team",
    "fieldtype": "Check",
    "label": "Restrict agent assignment to selected Team"
+  },
+  {
+   "default": "0",
+   "fieldname": "raised_by_also_include_while_assignment",
+   "fieldtype": "Check",
+   "label": "Raised By Also Include While Assignment"
   }
  ],
  "grid_page_length": 50,
  "issingle": 1,
  "links": [],
- "modified": "2025-07-30 21:45:58.873574",
+ "modified": "2026-06-19 06:53:14.222271",
  "modified_by": "Administrator",
  "module": "Helpdesk",
  "name": "HD Settings",
