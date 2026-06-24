@@ -169,33 +169,53 @@ const customFilters = computed(() => {
 
 const search = ref("");
 const members = ref([]);
-async function getMembers() {
-  let teamMembers = await call(
-    "helpdesk.helpdesk.doctype.hd_team.hd_team.get_team_members",
-    {
-      team: props.team,
-    }
-  );
-  let assignedMembers = props.assignees.map((a) => a.name);
-  teamMembers = teamMembers.filter((member: string) => {
-    return !assignedMembers.includes(member);
-  });
+// Whether the Assign To list is restricted to a resolved pool (Assignment Rule
+// users, or — when configured — team members) instead of all active agents.
+const restrictionActive = ref(false);
 
-  members.value = teamMembers.map((member: string) => {
-    return {
-      label: member,
-      value: member,
-    };
-  });
+async function getMembers() {
+  let pool: string[] = [];
+  let active = false;
+
+  // 1) Prefer the ticket's Assignment Rule users (SLA's rule, else team's rule),
+  //    i.e. exactly the agents auto-assignment would draw from.
+  if (props.doctype === "HD Ticket" && props.docname) {
+    try {
+      const ruleUsers =
+        (await call(
+          "pw_helpdesk.customizations.api.assignment.get_assignment_rule_users",
+          { ticket: props.docname }
+        )) || [];
+      if (ruleUsers.length) {
+        pool = ruleUsers;
+        active = true;
+      }
+    } catch (e) {
+      // no rule resolved -> fall through to the existing behaviour
+    }
+  }
+
+  // 2) Fall back to team members when team-restriction is configured.
+  if (!active && teamRestrictionApplied && assignWithinTeam && props.team) {
+    pool =
+      (await call(
+        "helpdesk.helpdesk.doctype.hd_team.hd_team.get_team_members",
+        { team: props.team }
+      )) || [];
+    active = true;
+  }
+
+  restrictionActive.value = active;
+
+  const assignedMembers = props.assignees.map((a) => a.name);
+  members.value = pool
+    .filter((member: string) => !assignedMembers.includes(member))
+    .map((member: string) => ({ label: member, value: member }));
 }
 
-const showRestrictedMembers = computed(() => {
-  return teamRestrictionApplied && assignWithinTeam && props.team;
-});
+const showRestrictedMembers = computed(() => restrictionActive.value);
 
 onMounted(() => {
-  if (showRestrictedMembers.value) {
-    getMembers();
-  }
+  getMembers();
 });
 </script>
