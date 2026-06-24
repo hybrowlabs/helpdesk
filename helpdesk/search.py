@@ -158,7 +158,13 @@ class Search:
         page_length=NUM_RESULTS,
         highlight=False,
     ):
+        raw_query = query
         query = self.clean_query(query)
+        # An empty query (e.g. the caller reduced the input to stopwords or
+        # stripped every character) makes FT.SEARCH raise "Query syntax error".
+        # Nothing can match an empty query anyway, so short-circuit cleanly.
+        if not query.strip():
+            return frappe._dict(docs=[], total=0, duration=0.0)
         query = Query(query).paging(start, page_length)
         if highlight:
             query = query.highlight()
@@ -168,7 +174,17 @@ class Search:
         query.with_scores()
         query.dialect(None)
 
-        result = self.redis.ft(self.index_name).search(query)
+        try:
+            result = self.redis.ft(self.index_name).search(query)
+        except ResponseError as exc:
+            # RediSearch isn't loaded on this Redis instance
+            # (``unknown command FT.SEARCH``). Fall back to a SQL LIKE
+            # query so search still works -- slower than FT.SEARCH but
+            # functional. Any other ResponseError is re-raised because
+            # it signals a real problem.
+            if "ft.search" not in str(exc).lower():
+                raise
+            return self._sql_fallback_search(raw_query, start, page_length)
 
         out = frappe._dict(docs=[], total=result.total, duration=result.duration)
         for doc in result.docs:
@@ -178,6 +194,90 @@ class Search:
             _doc.payload = json.loads(doc.payload) if doc.payload else None
             out.docs.append(_doc)
         return out
+
+    def _sql_fallback_search(self, raw_query, start, page_length):
+        """SQL LIKE fallback used when RediSearch isn't available.
+
+        Searches:
+          * ``HD Article`` (always, published only).
+          * ``HD Ticket`` (agents only -- same gate stock API applies).
+
+        Strips the FT.SEARCH metacharacters (``*``, ``|``) from
+        ``raw_query`` so the LIKE pattern only contains real keywords.
+        Returns the same ``frappe._dict(docs=[], total, duration)`` shape
+        the FT.SEARCH path returns, so the rest of the pipeline doesn't
+        need to branch.
+        """
+        import time as _time
+
+        started = _time.time()
+        bare = re.sub(r"[*|]+", " ", str(raw_query or "")).strip()
+        if not bare:
+            return frappe._dict(docs=[], total=0, duration=0.0)
+
+        like_pat = f"%{bare}%"
+        docs = []
+
+        try:
+            article_rows = frappe.db.sql(
+                """
+                SELECT name, title, content
+                FROM `tabHD Article`
+                WHERE status = 'Published'
+                  AND (title LIKE %(q)s OR content LIKE %(q)s)
+                ORDER BY modified DESC
+                LIMIT %(start)s, %(limit)s
+                """,
+                {"q": like_pat, "start": int(start), "limit": int(page_length)},
+                as_dict=True,
+            )
+            for r in article_rows:
+                docs.append(frappe._dict(
+                    # Outer ``search()`` does ``r.id.split(":")`` to
+                    # extract ``(doctype, name)``. Match that shape.
+                    id=f"HD Article:{r.name}",
+                    doctype="HD Article",
+                    name=r.name,
+                    title=r.title or "",
+                    description=strip_html_tags(r.content or "")[:400],
+                    payload=None,
+                ))
+        except Exception:
+            # HD Article missing or other transient issue -- don't kill
+            # the whole search just because articles can't be queried.
+            pass
+
+        if is_agent():
+            try:
+                ticket_rows = frappe.db.sql(
+                    """
+                    SELECT name, subject, description
+                    FROM `tabHD Ticket`
+                    WHERE subject LIKE %(q)s OR description LIKE %(q)s
+                    ORDER BY modified DESC
+                    LIMIT %(start)s, %(limit)s
+                    """,
+                    {"q": like_pat, "start": int(start), "limit": int(page_length)},
+                    as_dict=True,
+                )
+                for r in ticket_rows:
+                    docs.append(frappe._dict(
+                        # See note above: outer ``search`` re-splits on ":".
+                        id=f"HD Ticket:{r.name}",
+                        doctype="HD Ticket",
+                        name=r.name,
+                        title=r.subject or "",
+                        description=strip_html_tags(r.description or "")[:400],
+                        payload=None,
+                    ))
+            except Exception:
+                pass
+
+        return frappe._dict(
+            docs=docs,
+            total=len(docs),
+            duration=_time.time() - started,
+        )
 
     def clean_query(self, query):
         query = query.strip().replace("-*", "*")
@@ -365,6 +465,10 @@ def search(
             query += f"{sep}{part}*"
 
     query = query.lstrip(sep)  # Remove leading separator (| at beginning is invalid)
+    if not query.strip():
+        # Every term was a stopword or got stripped away -> nothing to search.
+        # Avoid sending an empty query to FT.SEARCH ("Query syntax error").
+        return []
     result = search.search(query, start=0, highlight=True)
     groups = {}
     for r in result.docs:

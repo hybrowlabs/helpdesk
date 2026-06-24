@@ -525,6 +525,15 @@ class HDTicket(Document):
     def assign_agent(self, agent):
         assign({"assign_to": [agent], "doctype": "HD Ticket", "name": self.name})
 
+        # ``assign_to.add`` writes ``_assign`` out-of-band (via the ToDo
+        # controller) and never re-saves the ticket, so
+        # before_save -> handle_status_auto_update doesn't run and the ticket
+        # is left at "Not Assigned" despite now having an assignee. Reload the
+        # freshly-written ``_assign`` and persist a status recompute so the
+        # status reflects the assignment (Not Assigned -> Open / Reopened).
+        self.reload()
+        self.save(ignore_permissions=True)
+
         if frappe.session.user != agent:
             self.notify_agent(agent, "Assignment")
 
