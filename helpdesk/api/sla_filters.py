@@ -80,13 +80,41 @@ def _users_for_team(team):
 	return {u for u in users if u}
 
 
+def _condition_matches(node, fieldname, value):
+	"""Recursively test a ``condition_json`` node for ``fieldname == value``.
+
+	The structure is a nested list, e.g.::
+
+	    [["agent_group", "==", "Support"], "and", ["custom_category", "==", "HW"]]
+
+	where each leaf is a ``[fieldname, operator, value]`` triple, conjunctions
+	are bare strings (``"and"`` / ``"or"``) and groups are nested lists. We walk
+	the whole tree so a match at any depth counts.
+	"""
+	if not isinstance(node, list):
+		# Conjunction string or scalar -- nothing to match.
+		return False
+
+	# Leaf triple: [fieldname, operator, value] with a string fieldname.
+	if len(node) == 3 and isinstance(node[0], str):
+		if node[0] != fieldname:
+			return False
+		row_value = node[2]
+		if isinstance(row_value, (list, tuple)):
+			return value in row_value
+		return row_value == value
+
+	# Otherwise it's a group/container -- recurse into its children.
+	return any(_condition_matches(child, fieldname, value) for child in node)
+
+
 def _sla_references_field(sla, fieldname, value):
 	"""True if an SLA's condition targets ``fieldname == value``.
 
 	SLAs do not link to a Team / Category directly -- they reference them
 	inside their filter condition. We check both the structured
-	``condition_json`` (a list of ``{fieldname, operator, value}`` rows) and
-	the raw ``condition`` Python expression so either authoring path matches.
+	``condition_json`` (nested ``[fieldname, operator, value]`` triples) and the
+	raw ``condition`` Python expression so either authoring path matches.
 
 	  * team          -> ``agent_group``
 	  * category       -> ``custom_category``
@@ -98,15 +126,8 @@ def _sla_references_field(sla, fieldname, value):
 	# Structured condition first -- most precise.
 	if sla.get("condition_json"):
 		try:
-			for row in json.loads(sla["condition_json"]) or []:
-				if row.get("fieldname") != fieldname:
-					continue
-				row_value = row.get("value")
-				if isinstance(row_value, (list, tuple)):
-					if value in row_value:
-						return True
-				elif row_value == value:
-					return True
+			if _condition_matches(json.loads(sla["condition_json"]), fieldname, value):
+				return True
 		except (json.JSONDecodeError, TypeError):
 			pass
 
