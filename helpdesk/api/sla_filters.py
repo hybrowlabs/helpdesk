@@ -10,82 +10,14 @@ SLA_LIST_FIELDS = ["name", "default_sla", "enabled", "description"]
 
 
 # ---------------------------------------------------------------------------
-# Helpers: resolve the Team <-> Assignment Rule <-> User relationships
+# Condition matching (category / sub-category live inside condition_json)
 # ---------------------------------------------------------------------------
-def _teams_for_user(user):
-	"""Return the set of HD Team names a user belongs to.
-
-	A user is considered part of a team when EITHER:
-	  * the user is listed in the team's own members (``HD Team.users`` ->
-	    ``HD Team Member.user``), OR
-	  * the user is listed in the Assignment Rule the team links to
-	    (``HD Team.assignment_rule`` -> ``Assignment Rule.users`` ->
-	    ``Assignment Rule User.user``).
-	"""
-	if not user:
-		return set()
-
-	teams = set()
-
-	# 1) Direct team membership.
-	teams.update(
-		frappe.get_all(
-			"HD Team Member",
-			filters={"parenttype": "HD Team", "user": user},
-			pluck="parent",
-		)
-	)
-
-	# 2) Membership via the team's Assignment Rule.
-	rules = frappe.get_all(
-		"Assignment Rule User",
-		filters={"parenttype": "Assignment Rule", "user": user},
-		pluck="parent",
-	)
-	if rules:
-		teams.update(
-			frappe.get_all(
-				"HD Team",
-				filters={"assignment_rule": ["in", list(set(rules))]},
-				pluck="name",
-			)
-		)
-
-	return teams
-
-
-def _users_for_team(team):
-	"""Return the set of user emails attached to a team (members + rule users)."""
-	if not team:
-		return set()
-
-	users = set(
-		frappe.get_all(
-			"HD Team Member",
-			filters={"parenttype": "HD Team", "parent": team},
-			pluck="user",
-		)
-	)
-
-	assignment_rule = frappe.db.get_value("HD Team", team, "assignment_rule")
-	if assignment_rule:
-		users.update(
-			frappe.get_all(
-				"Assignment Rule User",
-				filters={"parenttype": "Assignment Rule", "parent": assignment_rule},
-				pluck="user",
-			)
-		)
-
-	return {u for u in users if u}
-
-
 def _condition_matches(node, fieldname, value):
 	"""Recursively test a ``condition_json`` node for ``fieldname == value``.
 
 	The structure is a nested list, e.g.::
 
-	    [["agent_group", "==", "Support"], "and", ["custom_category", "==", "HW"]]
+	    [["custom_category", "==", "HW"], "and", ["custom_sub_category", "==", "Laptop"]]
 
 	where each leaf is a ``[fieldname, operator, value]`` triple, conjunctions
 	are bare strings (``"and"`` / ``"or"``) and groups are nested lists. We walk
@@ -108,22 +40,19 @@ def _condition_matches(node, fieldname, value):
 	return any(_condition_matches(child, fieldname, value) for child in node)
 
 
-def _sla_references_field(sla, fieldname, value):
-	"""True if an SLA's condition targets ``fieldname == value``.
+def _sla_condition_references(sla, fieldname, value):
+	"""True if an SLA's ``condition_json`` targets ``fieldname == value``.
 
-	SLAs do not link to a Team / Category directly -- they reference them
-	inside their filter condition. We check both the structured
-	``condition_json`` (nested ``[fieldname, operator, value]`` triples) and the
-	raw ``condition`` Python expression so either authoring path matches.
+	Category and sub-category are not stored as columns on the SLA -- they live
+	inside the filter condition, so we parse ``condition_json`` (and fall back to
+	the raw ``condition`` expression).
 
-	  * team          -> ``agent_group``
 	  * category       -> ``custom_category``
 	  * sub_category   -> ``custom_sub_category``
 	"""
 	if not value:
 		return False
 
-	# Structured condition first -- most precise.
 	if sla.get("condition_json"):
 		try:
 			if _condition_matches(json.loads(sla["condition_json"]), fieldname, value):
@@ -131,7 +60,7 @@ def _sla_references_field(sla, fieldname, value):
 		except (json.JSONDecodeError, TypeError):
 			pass
 
-	# Fall back to the raw expression (e.g. ``agent_group == "Support"``).
+	# Fall back to the raw expression (e.g. ``custom_category == "HW"``).
 	condition = sla.get("condition") or ""
 	if fieldname in condition and value in condition:
 		return True
@@ -140,7 +69,7 @@ def _sla_references_field(sla, fieldname, value):
 
 
 # ---------------------------------------------------------------------------
-# SLA list API  (mirrors frappe.client.get_list, adds team / user filters)
+# SLA list API  (mirrors frappe.client.get_list, adds helpdesk filters)
 # ---------------------------------------------------------------------------
 @frappe.whitelist()
 def get_sla_list(
@@ -156,53 +85,54 @@ def get_sla_list(
 	"""List ``HD Service Level Agreement`` records with all helpdesk filters.
 
 	Returns the same fields as the desk ``frappe.client.get_list`` call
-	(``name``, ``default_sla``, ``enabled``, ``description``). All of the
-	following filters are optional and combine with AND -- an SLA must satisfy
-	every supplied filter to be returned:
+	(``name``, ``default_sla``, ``enabled``, ``description``). Every filter is
+	optional and they combine with AND:
 
-	  * ``user``          -- SLAs for teams this user belongs to, where
-	    membership is resolved through the team's Assignment Rule (and direct
-	    team members). This is the "users defined in assignment rule" filter.
-	  * ``team``          -- SLAs whose condition targets this HD Team
-	    (``agent_group``).
-	  * ``category``      -- SLAs whose condition targets this category
-	    (``custom_category``).
-	  * ``sub_category``  -- SLAs whose condition targets this sub-category
-	    (``custom_sub_category``).
+	  * ``team``          -> SLA field ``custom_auto_assign_team`` (Link HD Team).
+	  * ``user``          -> SLAs whose ``custom_assignment_rule`` (Link
+	    Assignment Rule) lists this user in its ``users`` table. This is the
+	    "users defined in assignment rule" filter.
+	  * ``category``      -> ``custom_category`` inside ``condition_json``.
+	  * ``sub_category``  -> ``custom_sub_category`` inside ``condition_json``.
 
-	``filters`` (dict or JSON string) is passed straight through to the query
-	for any standard field filtering (e.g. ``{"enabled": 1}``).
+	``filters`` (dict or JSON string) is passed straight through for any other
+	standard field filtering (e.g. ``{"enabled": 1}``).
 	"""
 	if isinstance(filters, str):
 		filters = frappe.parse_json(filters) or {}
-	filters = filters or {}
+	filters = dict(filters or {})
 
-	# Pull every SLA matching the plain field filters, plus the condition
-	# columns we need to evaluate the team/user/category filters.
+	# team -> direct Link field on the SLA.
+	if team:
+		filters["custom_auto_assign_team"] = team
+
+	# user -> the Assignment Rules that list this user, then SLAs pointing at them.
+	if user:
+		rules = frappe.get_all(
+			"Assignment Rule User",
+			filters={"parenttype": "Assignment Rule", "user": user},
+			pluck="parent",
+		)
+		rules = list(set(rules))
+		if not rules:
+			return []
+		filters["custom_assignment_rule"] = ["in", rules]
+
+	# DB-level filters (team, user, plus any caller-supplied field filters).
 	rows = frappe.get_all(
 		SLA_DOCTYPE,
 		filters=filters,
-		fields=SLA_LIST_FIELDS + ["condition", "condition_json", "creation"],
+		fields=SLA_LIST_FIELDS + ["condition", "condition_json"],
 		order_by=order_by,
 	)
 
-	# user -> the set of teams to restrict to (via Assignment Rule + members).
-	if user:
-		user_teams = _teams_for_user(user)
-		if not user_teams:
-			return []
-		rows = [
-			r for r in rows if any(_sla_references_field(r, "agent_group", t) for t in user_teams)
-		]
-
-	# Direct condition-field filters. Each is independent and ANDs with the rest.
+	# category / sub_category -> matched against condition_json in Python.
 	for fieldname, value in (
-		("agent_group", team),
 		("custom_category", category),
 		("custom_sub_category", sub_category),
 	):
 		if value:
-			rows = [r for r in rows if _sla_references_field(r, fieldname, value)]
+			rows = [r for r in rows if _sla_condition_references(r, fieldname, value)]
 
 	# Trim to the public field set and apply pagination.
 	limit_start = int(limit_start or 0)
@@ -216,9 +146,15 @@ def get_sla_list(
 
 
 @frappe.whitelist()
-def get_sla_team_users(team):
-	"""Return the users attached to a team (members + its Assignment Rule)."""
-	return sorted(_users_for_team(team))
+def get_assignment_rule_users(assignment_rule):
+	"""Return the users listed in an Assignment Rule's ``users`` table."""
+	if not assignment_rule:
+		return []
+	return frappe.get_all(
+		"Assignment Rule User",
+		filters={"parenttype": "Assignment Rule", "parent": assignment_rule},
+		pluck="user",
+	)
 
 
 # ---------------------------------------------------------------------------
