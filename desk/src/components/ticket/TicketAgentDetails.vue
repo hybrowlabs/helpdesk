@@ -95,7 +95,7 @@ const resolutionBadge = computed(() => {
     clearInterval(resolutionInterval);
   }
   if (
-    props.ticket.status === "Replied" &&
+    props.ticket.status === "Awaiting User Response" &&
     props.ticket.on_hold_since &&
     dayjs(props.ticket.resolution_by).isAfter(dayjs(props.ticket.on_hold_since))
   ) {

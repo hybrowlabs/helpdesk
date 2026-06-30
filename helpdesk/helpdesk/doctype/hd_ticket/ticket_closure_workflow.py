@@ -108,8 +108,8 @@ def reopen_ticket(ticket_id: str, reopen_reason: str = ""):
         frappe.throw(_("You are not authorized to reopen this ticket"), frappe.PermissionError)
 
     # Check if ticket can be reopened
-    if ticket_doc.status not in ["Closed", "Resolved"]:
-        frappe.throw(_("Only closed or resolved tickets can be reopened"), frappe.ValidationError)
+    if ticket_doc.status not in ["Closed", "Requested Closure"]:
+        frappe.throw(_("Only closed or closure-requested tickets can be reopened"), frappe.ValidationError)
 
     # Reset resolution submission state to allow new resolution
     ticket_doc.resolution_submitted = 0
@@ -423,7 +423,7 @@ def reject_resolution(ticket_id: str, rejection_reason: str = ""):
         frappe.throw(_("No resolution exists to reject"), frappe.ValidationError)
 
     # Check if already in a rejectable state
-    if ticket_doc.status not in ["Resolved", "Closed"]:
+    if ticket_doc.status not in ["Requested Closure", "Closed"]:
         frappe.throw(_("Resolution cannot be rejected in current state"), frappe.ValidationError)
 
     # Get current resolution history record
@@ -460,9 +460,9 @@ def reject_resolution(ticket_id: str, rejection_reason: str = ""):
             "is_current_version": 1
         }).insert(ignore_permissions=True)
 
-    # Reset ticket for new resolution - back to Replied status for new resolution
+    # Reset ticket for new resolution - back to Awaiting User Response status for new resolution
     # Keep resolution_details for audit trail (already archived in HD Resolution History)
-    ticket_doc.status = "Replied"
+    ticket_doc.status = "Awaiting User Response"
     ticket_doc.resolution_submitted = 0
     ticket_doc.resolution_submitted_on = None
 
@@ -504,7 +504,7 @@ def mark_resolution_satisfied(ticket_id: str):
         frappe.throw(_("No resolution exists to mark as satisfied"), frappe.ValidationError)
 
     # Check if in correct state
-    if ticket_doc.status != "Resolved":
+    if ticket_doc.status != "Requested Closure":
         frappe.throw(_("Resolution cannot be marked as satisfied in current state"), frappe.ValidationError)
 
     # Get current resolution history record
@@ -539,7 +539,7 @@ def mark_resolution_satisfied(ticket_id: str):
             "is_current_version": 1
         }).insert(ignore_permissions=True)
 
-    # Keep ticket in Resolved status but mark as satisfied in history
+    # Keep ticket in Requested Closure status but mark as satisfied in history
     ticket_doc.save(ignore_permissions=True)
 
     # Create a comment about the satisfaction

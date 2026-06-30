@@ -72,7 +72,7 @@ class TestHDTicket(IntegrationTestCase):
         )
         self.assertEqual(len(notification), 2)
         ticket = frappe.get_doc("HD Ticket", ticket.name)
-        ticket.status = "Replied"
+        ticket.status = "Awaiting User Response"
         ticket.save()
 
         ticket.status = "Open"
@@ -90,7 +90,7 @@ class TestHDTicket(IntegrationTestCase):
         )
         self.assertEqual(len(notification), 2)
 
-        ticket.status = "Resolved"
+        ticket.status = "Requested Closure"
         ticket.save()
         self.assertTrue(ticket)
 
@@ -115,7 +115,7 @@ class TestHDTicket(IntegrationTestCase):
         self.assertEqual(len(notification), 1)
 
         ticket = frappe.get_doc("HD Ticket", ticket.name)
-        ticket.status = "Replied"
+        ticket.status = "Awaiting User Response"
         ticket.save()
         self.assertTrue(ticket)
 
@@ -123,7 +123,7 @@ class TestHDTicket(IntegrationTestCase):
         ticket.save()
         self.assertTrue(ticket)
 
-        ticket.status = "Resolved"
+        ticket.status = "Requested Closure"
         ticket.save()
         self.assertTrue(ticket)
 
@@ -355,7 +355,7 @@ class TestHDTicket(IntegrationTestCase):
         self.assertEqual(expected_resolution_by, ticket.resolution_by)
 
         ticket.reload()
-        ticket.status = "Replied"
+        ticket.status = "Awaiting User Response"
         ticket.save()
 
         ticket.reload()

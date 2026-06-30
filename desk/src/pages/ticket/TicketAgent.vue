@@ -91,22 +91,22 @@
             </Button>
           </div>
         </div>
-        <div class="relative">
+        <div class="relative flex items-center gap-2">
           <Button
-            v-if="canCloseTicket && ticket.data.status !== 'Closed'"
-            :label="(isAdmin || hasValidResolution) ? 'Close' : 'Close (Resolution Required)'"
-            :variant="(isAdmin || hasValidResolution) ? 'solid' : 'outline'"
-            :theme="(isAdmin || hasValidResolution) ? 'red' : 'gray'"
-            :disabled="isAdmin ? false : !hasValidResolution"
-            :class="{ 'opacity-60': !isAdmin && !hasValidResolution }"
-            @click="triggerClose()"
-          />
-          <Button
-            v-else-if="canRequestClosure && ticket.data.status !== 'Closed'"
+            v-if="canRequestClosure"
             label="Request Closure"
             variant="solid"
             theme="gray"
             @click="triggerRequestClosure()"
+          />
+          <Button
+            v-if="canCloseTicket && ticket.data.status !== 'Closed'"
+            :label="(isAdmin || hasValidResolution || resolutionDescriptionNotMandatory) ? 'Close' : 'Close (Resolution Required)'"
+            :variant="(isAdmin || hasValidResolution || resolutionDescriptionNotMandatory) ? 'solid' : 'outline'"
+            :theme="(isAdmin || hasValidResolution || resolutionDescriptionNotMandatory) ? 'red' : 'gray'"
+            :disabled="(isAdmin || resolutionDescriptionNotMandatory) ? false : !hasValidResolution"
+            :class="{ 'opacity-60': !isAdmin && !resolutionDescriptionNotMandatory && !hasValidResolution }"
+            @click="triggerClose()"
           />
         </div>
       </template>
@@ -208,7 +208,9 @@
       <template #body-content>
         <div class="flex flex-col flex-1 gap-3">
           <p class="text-p-base text-ink-gray-7">
-            Request that this ticket be closed by providing resolution details.
+            {{ resolutionDescriptionNotMandatory
+              ? "Are you sure you want to request closure of this ticket?"
+              : "Request that this ticket be closed by providing resolution details." }}
           </p>
           <div
             v-if="requestClosureError"
@@ -217,6 +219,7 @@
             {{ requestClosureError }}
           </div>
           <FormControl
+            v-if="!resolutionDescriptionNotMandatory"
             v-model="requestClosureNotes"
             type="textarea"
             placeholder="Describe how this ticket was resolved..."
@@ -244,7 +247,9 @@
       <template #body-content>
         <div class="flex flex-col flex-1 gap-3">
           <p class="text-p-base text-ink-gray-7">
-            Please provide resolution details to close this ticket.
+            {{ resolutionDescriptionNotMandatory
+              ? "Are you sure you want to close this ticket?"
+              : "Please provide resolution details to close this ticket." }}
           </p>
           <div
             v-if="closeError"
@@ -253,6 +258,7 @@
             {{ closeError }}
           </div>
           <FormControl
+            v-if="!resolutionDescriptionNotMandatory"
             v-model="closeNotes"
             type="textarea"
             placeholder="Describe how this ticket was resolved..."
@@ -330,7 +336,7 @@ const router = useRouter();
 const ticketStatusStore = useTicketStatusStore();
 const { getUser } = useUserStore();
 const authStore = useAuthStore();
-const { userId, isAdmin, isAgent } = storeToRefs(authStore);
+const { userId, isAdmin, isAgent, isManager } = storeToRefs(authStore);
 const { $dialog } = globalStore();
 
 // Fallback to session user from cookie if auth store not loaded yet
@@ -354,6 +360,23 @@ const showRequestClosureDialog = ref(false);
 const requestClosureNotes = ref("");
 const requestClosureLoading = ref(false);
 const requestClosureError = ref("");
+
+// HD Setting: when enabled, the resolution description field is hidden in the
+// Request Closure / Close dialogs and submitted with a default value of
+// "resolved". HD Settings is a Single doctype, so use get_single_value (returns
+// the field value directly).
+const resolutionMandatorySetting = createResource({
+  url: "frappe.client.get_single_value",
+  cache: true,
+  params: {
+    doctype: "HD Settings",
+    field: "resolution_description_not_mandatory",
+  },
+  auto: true,
+});
+const resolutionDescriptionNotMandatory = computed(
+  () => !!resolutionMandatorySetting.data
+);
 
 // Close Ticket dialog state
 const showCloseDialog = ref(false);
@@ -484,8 +507,8 @@ const hasValidResolution = computed(() => {
 const canCloseTicket = computed(() => {
   if (!ticket.data || !currentUserId.value) return false;
 
-  // Admin can always close any ticket
-  if (isAdmin.value) {
+  // System Manager and Agent Manager can always close any ticket
+  if (isAdmin.value || isManager.value) {
     return true;
   }
 
@@ -511,9 +534,15 @@ const canCloseTicket = computed(() => {
 const canRequestClosure = computed(() => {
   if (!ticket.data || !currentUserId.value) return false;
 
-  // Ticket already closed - no action needed
-  if (ticket.data.status === 'Closed') {
+  // Don't show the Request Closure button for these statuses
+  const hiddenStatuses = ["Open", "Closed", "Archived", "Requested Closure"];
+  if (hiddenStatuses.includes(ticket.data.status)) {
     return false;
+  }
+
+  // System Manager and Agent Manager always see both buttons
+  if (isAdmin.value || isManager.value) {
+    return true;
   }
 
   // If user can close, they don't need to request
@@ -537,8 +566,8 @@ const canRequestClosure = computed(() => {
 const canRejectResolution = computed(() => {
   if (!ticket.data || !currentUserId.value) return false;
 
-  // Only allow rejection if ticket is Resolved or Closed with resolution
-  if (ticket.data.status !== 'Resolved' && ticket.data.status !== 'Closed') {
+  // Only allow rejection if ticket is Requested Closure or Closed with resolution
+  if (ticket.data.status !== 'Requested Closure' && ticket.data.status !== 'Closed') {
     return false;
   }
 
@@ -561,8 +590,8 @@ const canRejectResolution = computed(() => {
 
 const canMarkSatisfied = computed(() => {
   if (!ticket.data || !currentUserId.value) return false;
-  // Only allow marking satisfied if ticket status is Resolved
-  if (ticket.data.status !== 'Resolved') {
+  // Only allow marking satisfied if ticket status is Requested Closure
+  if (ticket.data.status !== 'Requested Closure') {
     return false;
   }
   // Must have resolution that was submitted
@@ -573,7 +602,7 @@ const canMarkSatisfied = computed(() => {
     return false;
   }
   // Check if resolution is not already marked as satisfied by checking history
-  // For now, allow marking satisfied if ticket is in Resolved status
+  // For now, allow marking satisfied if ticket is in Requested Closure status
   // User can mark satisfied if they are the raised_by user
   if (ticket.data.raised_by === currentUserId.value) {
     return true;
@@ -585,7 +614,7 @@ const showResolutionSatisfactionControls = computed(() => {
   // Only show if user can perform satisfaction actions and ticket has resolution
   return (canRejectResolution.value || canMarkSatisfied.value) &&
          ticket.data &&
-         ticket.data.status === 'Resolved' &&
+         ticket.data.status === 'Requested Closure' &&
          ticket.data.resolution_details;
 });
 
@@ -636,9 +665,15 @@ const tabs = computed(() => {
     },
   ];
   
-  // Only show Resolution tab if ticket has been replied to or is in later stages
-  const allowedStatuses = ["Replied", "Resolved", "Closed", "Reopened"];
-  if (ticket.data && allowedStatuses.includes(ticket.data.status)) {
+  // Only show Resolution tab if ticket has been replied to or is in later stages.
+  // Also hidden when the resolution description is not mandatory (closure is
+  // requested directly without collecting a resolution).
+  const allowedStatuses = ["Awaiting User Response", "Requested Closure", "Closed", "Reopened"];
+  if (
+    !resolutionDescriptionNotMandatory.value &&
+    ticket.data &&
+    allowedStatuses.includes(ticket.data.status)
+  ) {
     baseTabs.push({
       name: "resolution",
       label: "Resolution",
@@ -797,7 +832,10 @@ async function triggerClose() {
 }
 
 async function submitClose() {
-  if (!closeNotes.value.trim()) {
+  // When the resolution description is not mandatory, the field is hidden and we
+  // submit a default value of "resolved"; otherwise the notes are required.
+  const notMandatory = resolutionDescriptionNotMandatory.value;
+  if (!notMandatory && !closeNotes.value.trim()) {
     closeError.value = "Resolution details are required";
     return;
   }
@@ -808,7 +846,7 @@ async function submitClose() {
     // Save resolution with history tracking
     await call("helpdesk.api.resolution.save_resolution_with_history", {
       ticket_id: props.ticketId,
-      resolution_content: closeNotes.value,
+      resolution_content: notMandatory ? "resolved" : closeNotes.value,
     });
 
     // Close the ticket
@@ -942,7 +980,10 @@ async function triggerRequestClosure() {
 }
 
 async function submitRequestClosure() {
-  if (!requestClosureNotes.value.trim()) {
+  // When the resolution description is not mandatory, the field is hidden and we
+  // submit a default value of "resolved"; otherwise the notes are required.
+  const notMandatory = resolutionDescriptionNotMandatory.value;
+  if (!notMandatory && !requestClosureNotes.value.trim()) {
     requestClosureError.value = "Resolution details are required";
     return;
   }
@@ -954,7 +995,7 @@ async function submitRequestClosure() {
     // The backend dedup logic prevents duplicates if called again with same content.
     const response = await call("pw_helpdesk.customizations.ticket_closure_workflow.request_closure", {
       ticket_id: props.ticketId,
-      resolution_notes: requestClosureNotes.value,
+      resolution_notes: notMandatory ? "resolved" : requestClosureNotes.value,
     });
 
     toast.success(response?.message || "Closure request submitted successfully");

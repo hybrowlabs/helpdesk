@@ -65,8 +65,8 @@ class HDResolutionHistory(Document):
         """Handle when resolution is rejected"""
         ticket_doc = frappe.get_doc("HD Ticket", self.ticket)
 
-        # Reset ticket status to Replied for new resolution
-        ticket_doc.status = "Replied"
+        # Reset ticket status to Awaiting User Response for new resolution
+        ticket_doc.status = "Awaiting User Response"
 
         # Reset resolution submission flags to allow new resolution
         ticket_doc.resolution_submitted = 0
@@ -87,7 +87,7 @@ class HDResolutionHistory(Document):
         """Handle when resolution is accepted"""
         ticket_doc = frappe.get_doc("HD Ticket", self.ticket)
 
-        # Keep current version active and ticket stays in Resolved status
+        # Keep current version active and ticket stays in Requested Closure status
         self.is_current_version = 1
 
         ticket_doc.save(ignore_permissions=True)

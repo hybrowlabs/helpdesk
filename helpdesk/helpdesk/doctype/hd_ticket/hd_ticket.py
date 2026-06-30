@@ -82,9 +82,9 @@ class HDTicket(Document):
         """
         Auto-update ticket status based on ticket state. Priority order:
         1. Archived  — custom_archived flag forces "Archived"
-        2. Closed / Resolved — terminal; never auto-changed
+        2. Closed — terminal; never auto-changed
         3. Requested Closure — resolution_details present
-        4. Replied — preserved; owned by sync_status_after_agent_reply
+        4. Awaiting User Response — preserved; owned by sync_status_after_agent_reply
         5. Open / Not Assigned / Reopened — driven by assignee presence
         """
         # Priority 1: Archived flag overrides everything
@@ -94,12 +94,12 @@ class HDTicket(Document):
             return
 
         # Priority 2: Terminal statuses — never auto-change
-        if self.status in ("Closed", "Resolved"):
+        if self.status == "Closed":
             return
 
         prev = self.get_doc_before_save()
         prev_status = prev.status if prev else None
-        reopening_from_terminal = prev_status in ("Closed", "Resolved", "Archived")
+        reopening_from_terminal = prev_status in ("Closed", "Archived")
 
         # Clear stale resolution data when the ticket is transitioning out of a
         # terminal state (i.e. being reopened).  Without this, the old
@@ -131,8 +131,8 @@ class HDTicket(Document):
                     self.status = "Requested Closure"
                 return
 
-        # Priority 4: Replied status is owned by sync_status_after_agent_reply — don't touch
-        if self.status == "Replied":
+        # Priority 4: Awaiting User Response status is owned by sync_status_after_agent_reply — don't touch
+        if self.status == "Awaiting User Response":
             return
 
         # Priority 5: Drive Open / Not Assigned / Reopened by assignee presence.
@@ -154,7 +154,7 @@ class HDTicket(Document):
         if not has_assignee:
             self.status = "Not Assigned"
         elif reopening_from_terminal:
-            # Transitioning out of Closed/Resolved/Archived with an assignee → Reopened
+            # Transitioning out of Closed/Archived with an assignee → Reopened
             self.status = "Reopened"
         elif self.status in ("Not Assigned", "Requested Closure"):
             # Assignee just added (was Not Assigned) or resolution cleared (was Requested
@@ -392,11 +392,11 @@ class HDTicket(Document):
             self.get_doc_before_save().status if self.get_doc_before_save() else None
         )
         is_closed_or_resolved = old_status == "Open" and self.status in [
-            "Resolved",
+            "Requested Closure",
             "Closed",
         ]
 
-        if self.status == "Replied" or is_closed_or_resolved:
+        if self.status == "Awaiting User Response" or is_closed_or_resolved:
             self.first_responded_on = (
                 self.first_responded_on or frappe.utils.now_datetime()
             )
@@ -415,7 +415,7 @@ class HDTicket(Document):
     def validate_feedback(self):
         if (
             self.feedback
-            or self.status != "Resolved"
+            or self.status != "Requested Closure"
             or not self.has_value_changed("status")
             or is_agent()
         ):
@@ -782,9 +782,9 @@ class HDTicket(Document):
         update_values = {}
         first_responded_on = self.first_responded_on or frappe.utils.now_datetime()
 
-        if self.status != "Replied":
-            update_values["status"] = "Replied"
-            self.status = "Replied"
+        if self.status != "Awaiting User Response":
+            update_values["status"] = "Awaiting User Response"
+            self.status = "Awaiting User Response"
 
         if not self.first_responded_on:
             update_values["first_responded_on"] = first_responded_on
@@ -806,7 +806,7 @@ class HDTicket(Document):
             # send email to assigned agents
             self.send_reply_email_to_agent(message)
 
-        if self.status == "Replied":
+        if self.status == "Awaiting User Response":
             self.status = "Open"
             self.save(ignore_permissions=True)
 
@@ -1123,8 +1123,8 @@ class HDTicket(Document):
         # If communication is incoming, then it is a reply from customer, and ticket must
         # be reopened - but only if NOT a self-reply (raiser replying to their own ticket)
         if c.sent_or_received == "Received":
-            # Only reopen if sender is different from ticket raiser OR if status was Replied
-            if c.sender != self.raised_by or self.status == "Replied":
+            # Only reopen if sender is different from ticket raiser OR if status was Awaiting User Response
+            if c.sender != self.raised_by or self.status == "Awaiting User Response":
                 self.status = "Open"
         # If communication is outgoing, it must be a reply from agent
         if c.sent_or_received == "Sent":
@@ -1134,7 +1134,7 @@ class HDTicket(Document):
                     self.first_responded_on or frappe.utils.now_datetime()
                 )
                 if frappe.db.get_single_value("HD Settings", "auto_update_status"):
-                    self.status = "Replied"
+                    self.status = "Awaiting User Response"
 
         # Fetch description from communication if not set already. This might not be needed
         # anymore as a communication is created when a ticket is created.
@@ -1501,7 +1501,7 @@ def close_replied_tickets_after_n_days():
                     WHERE reference_doctype = 'HD Ticket'
                     GROUP BY reference_name
                 ) latest_comm ON t.name = latest_comm.reference_name
-                WHERE t.status = 'Replied'
+                WHERE t.status = 'Awaiting User Response'
                 AND latest_comm.last_communication_date < DATE_SUB(NOW(), INTERVAL %(days_threshold)s DAY)
             """,
             {"days_threshold": days_threshold},
@@ -1529,7 +1529,7 @@ def close_unassigned_tickets_after_sla_auto_close():
                 AND todo.reference_name = t.name
                 AND todo.status = 'Open'
                 AND (todo.allocated_to IS NULL OR todo.allocated_to = '')
-            WHERE t.status NOT IN ('Closed', 'Archived', 'Requested Closure', 'Resolved')
+            WHERE t.status NOT IN ('Closed', 'Archived', 'Requested Closure')
                 AND t.sla IS NOT NULL
                 AND t.sla != ''
             GROUP BY t.name, t.creation, sla.auto_close_days

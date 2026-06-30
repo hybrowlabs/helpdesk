@@ -129,12 +129,12 @@ const statusOptions = [
     value: "Open",
   },
   {
-    label: "Replied",
-    value: "Replied",
+    label: "Awaiting User Response",
+    value: "Awaiting User Response",
   },
   {
-    label: "Resolved",
-    value: "Resolved",
+    label: "Requested Closure",
+    value: "Requested Closure",
   },
   {
     label: "Closed",

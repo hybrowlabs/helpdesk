@@ -10,7 +10,7 @@
           :actions="ticket.data._customActions"
         />
         <Button
-          v-if="ticket.data.status === 'Replied'"
+          v-if="ticket.data.status === 'Awaiting User Response'"
           label="Resolve"
           theme="green"
           variant="solid"
@@ -301,8 +301,8 @@ const hasValidResolution = computed(() => {
 const canRejectResolution = computed(() => {
   if (!ticket.data || !currentUserId.value) return false;
 
-  // Only allow rejection if ticket is Resolved or Closed with resolution
-  if (ticket.data.status !== 'Resolved' && ticket.data.status !== 'Closed') {
+  // Only allow rejection if ticket is Requested Closure or Closed with resolution
+  if (ticket.data.status !== 'Requested Closure' && ticket.data.status !== 'Closed') {
     return false;
   }
 
@@ -327,7 +327,7 @@ const canReopenTicket = computed(() => {
   if (!ticket.data || !currentUserId.value) return false;
 
   // Only allow reopening of closed or resolved tickets without resolution
-  if (ticket.data.status !== 'Closed' && ticket.data.status !== 'Resolved') {
+  if (ticket.data.status !== 'Closed' && ticket.data.status !== 'Requested Closure') {
     return false;
   }
 
@@ -779,7 +779,7 @@ const tabs = computed(() => {
   ];
   
   // Only show Resolution tab if ticket has been replied to or is in later stages
-  const allowedStatuses = ["Replied", "Resolved", "Closed", "Reopened"];
+  const allowedStatuses = ["Awaiting User Response", "Requested Closure", "Closed", "Reopened"];
   if (ticket.data && allowedStatuses.includes(ticket.data.status)) {
     baseTabs.push({
       name: "resolution",

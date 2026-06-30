@@ -65,7 +65,9 @@ has_permission = {
 
 permission_query_conditions = {
     "HD Ticket": "helpdesk.helpdesk.doctype.hd_ticket.hd_ticket.permission_query",
-    "HD Category": "helpdesk.api.category.get_permission_query_conditions",
+    # HD Category visibility is enforced only on the frontend (via the whitelisted
+    # category APIs that filter with hidden_categories_for_user). The desk backend
+    # intentionally shows all categories, so the permission_query hook is not applied.
 }
 
 # DocType Class

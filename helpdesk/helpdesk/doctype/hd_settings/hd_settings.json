@@ -32,6 +32,7 @@
   "allow_anyone_to_create_tickets",
   "auto_update_status",
   "pause_resolution_timer_on_reopen",
+  "resolution_description_not_mandatory",
   "column_break_iarl",
   "auto_close_tickets",
   "auto_close_after_days",
@@ -260,7 +261,7 @@
   },
   {
    "default": "0",
-   "description": "When enabled, the ticket status will automatically change to \"Replied\" whenever the agent responds to a ticket.\n",
+   "description": "When enabled, the ticket status will automatically change to \"Awaiting User Response\" whenever the agent responds to a ticket.\n",
    "fieldname": "auto_update_status",
    "fieldtype": "Check",
    "label": "Auto update status"
@@ -271,6 +272,13 @@
    "fieldname": "pause_resolution_timer_on_reopen",
    "fieldtype": "Check",
    "label": "Pause Resolution Timer on Reopen"
+  },
+  {
+   "default": "0",
+   "description": "If enabled, the resolution description is not required on Request Closure. Clicking \"Request Closure\" skips the description dialog and submits with a default resolution value of \"resolved\".",
+   "fieldname": "resolution_description_not_mandatory",
+   "fieldtype": "Check",
+   "label": "Resolution Description Not Mandatory on Request Closure"
   },
   {
    "default": "1",
@@ -287,7 +295,7 @@
    "default": "0",
    "fieldname": "auto_close_tickets",
    "fieldtype": "Check",
-   "label": "Automatically Close Replied Tickets"
+   "label": "Automatically Close Awaiting User Response Tickets"
   },
   {
    "default": "14",
@@ -319,11 +327,11 @@
    "fieldtype": "Select",
    "label": "Send feedback when",
    "mandatory_depends_on": "eval:doc.enable_email_ticket_feedback",
-   "options": "Resolved\nClosed"
+   "options": "Requested Closure\nClosed"
   },
   {
    "default": "1",
-   "description": "If enabled, feedback email will be sent to the customer when you mark a ticket as Resolved/Closed.\n",
+   "description": "If enabled, feedback email will be sent to the customer when you mark a ticket as Requested Closure/Closed.\n",
    "fieldname": "enable_email_ticket_feedback",
    "fieldtype": "Check",
    "label": "Enable feedback for Email Tickets"

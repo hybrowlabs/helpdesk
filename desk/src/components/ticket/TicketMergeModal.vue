@@ -89,7 +89,7 @@ interface Filter {
 
 function getDefaultFilters() {
   const filters: Filter = {
-    status: ["in", ["Open", "Replied"]],
+    status: ["in", ["Open", "Awaiting User Response"]],
     is_merged: 0,
     name: ["!=", props.ticket.name],
   };

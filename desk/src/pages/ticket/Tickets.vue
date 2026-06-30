@@ -185,7 +185,7 @@ function handle_response_by_field(row: any, item: string) {
 }
 
 function handle_resolution_by_field(row: any, item: string) {
-  if (row.status === "Replied") {
+  if (row.status === "Awaiting User Response") {
     return h(Badge, {
       label: "Paused",
       theme: "blue",

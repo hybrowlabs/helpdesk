@@ -7,7 +7,7 @@
       </p>
     </div>
 
-    <div v-if="(ticket.status === 'Resolved' || ticket.status === 'Closed') && ticket.resolution_ever_submitted" class="flex-1 overflow-y-auto p-6">
+    <div v-if="(ticket.status === 'Requested Closure' || ticket.status === 'Closed') && ticket.resolution_ever_submitted" class="flex-1 overflow-y-auto p-6">
       <div class="bg-green-50 border border-green-200 rounded-lg p-4">
         <div class="flex items-start">
           <TicketIcon class="h-5 w-5 text-green-600 mt-0.5 mr-3" />
@@ -287,12 +287,12 @@ async function submitResolution() {
       resolution_content: resolutionDetails.value,
     });
 
-    // Set status to Resolved
+    // Set status to Requested Closure
     await call("frappe.client.set_value", {
       doctype: "HD Ticket",
       name: props.ticketId,
       fieldname: "status",
-      value: "Resolved",
+      value: "Requested Closure",
     });
 
     toast.success("Resolution submitted successfully");

@@ -79,7 +79,7 @@ const showMergeModal = ref(false);
 
 const showMergeOption = computed(() => {
   return (
-    !props.ticket.is_merged && ["Open", "Replied"].includes(props.ticket.status)
+    !props.ticket.is_merged && ["Open", "Awaiting User Response"].includes(props.ticket.status)
   );
 });
 </script>
