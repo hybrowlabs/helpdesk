@@ -157,7 +157,7 @@ class HDServiceLevelAgreement(Document):
         if duplicate_name:
             frappe.throw(
                 _(
-                    "SLA policy <strong>{0}</strong> already has the same assignment conditions and working hours."
+                    "SLA policy <strong>{0}</strong> already has the same assignment conditions."
                 ).format(duplicate_name)
             )
 

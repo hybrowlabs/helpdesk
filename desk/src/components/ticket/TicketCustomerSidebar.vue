@@ -224,7 +224,7 @@ const ticketAdditionalInfo = computed(() => {
 });
 function transformStatus(status: string) {
   switch (status) {
-    case "Replied":
+    case "Awaiting User Response":
       return "Awaiting reply";
     default:
       return status;

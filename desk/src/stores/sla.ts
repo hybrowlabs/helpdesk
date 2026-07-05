@@ -4,7 +4,7 @@ import { ref } from "vue";
 
 const defaultStatus = [
   {
-    status: "Replied",
+    status: "Awaiting User Response",
     sla_behavior: "Paused",
   },
   {
@@ -12,7 +12,7 @@ const defaultStatus = [
     sla_behavior: "Fulfilled",
   },
   {
-    status: "Resolved",
+    status: "Requested Closure",
     sla_behavior: "Fulfilled",
   },
 ];

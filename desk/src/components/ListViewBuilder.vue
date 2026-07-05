@@ -304,7 +304,7 @@ const list = createResource({
       data.data.forEach((row) => {
         if (
           defaultParams.show_customer_portal_fields &&
-          row.status === "Replied"
+          row.status === "Awaiting User Response"
         ) {
           row.status = "Awaiting Response";
         }
@@ -496,7 +496,7 @@ function handleFieldClick(e: MouseEvent, column, row, item) {
   e.stopPropagation();
   e.preventDefault();
   if (item == "Awaiting Response") {
-    item = "Replied";
+    item = "Awaiting User Response";
   }
 
   if (column.type === "MultipleAvatar") {

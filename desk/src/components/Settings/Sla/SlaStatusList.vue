@@ -66,7 +66,7 @@ const props = defineProps({
   },
 });
 
-const statusOptions = ["Open", "Resolved", "Closed", "Replied"];
+const statusOptions = ["Open", "Requested Closure", "Closed", "Awaiting User Response"];
 
 const addRow = () => {
   const existingStatuses = props.statusList.map((s) => s?.status);

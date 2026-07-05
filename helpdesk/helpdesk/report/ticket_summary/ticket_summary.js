@@ -33,8 +33,8 @@ frappe.query_reports["Ticket Summary"] = {
       options: [
         "",
         { label: __("Open"), value: "Open" },
-        { label: __("Replied"), value: "Replied" },
-        { label: __("Resolved"), value: "Resolved" },
+        { label: __("Awaiting User Response"), value: "Awaiting User Response" },
+        { label: __("Requested Closure"), value: "Requested Closure" },
         { label: __("Closed"), value: "Closed" },
       ],
     },

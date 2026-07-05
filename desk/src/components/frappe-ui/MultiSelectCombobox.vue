@@ -185,6 +185,11 @@
                     label="Select All"
                     @click.stop="selectAll"
                   />
+                  <Button
+                    v-else
+                    label="Unselect All"
+                    @click.stop="unselectAll"
+                  />
                 </div>
                 <div v-else class="flex items-center justify-end">
                   <Button label="Clear" @click.stop="selectedValue = null" />
@@ -318,7 +323,7 @@ export default {
     },
     filterOptions(options) {
       if (!this.query) return options;
-      return fuzzySearch(options, {
+      return this.fuzzySearch(options, {
         term: this.query,
         keys: ["label", "value"],
       });
@@ -373,6 +378,9 @@ export default {
     },
     selectAll() {
       this.selectedValue = this.allOptions;
+    },
+    unselectAll() {
+      this.selectedValue = [];
     },
     fuzzySearch(arr, { term, keys }) {
       // search for term in all keys of arr items and sort by relevance

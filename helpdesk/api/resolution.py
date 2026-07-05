@@ -280,7 +280,7 @@ def create_resolution_history(
     ticket_doc.resolution_submitted = 1
     ticket_doc.resolution_submitted_on = frappe.utils.now_datetime()
     ticket_doc.resolution_ever_submitted = 1
-    ticket_doc.status = "Resolved"
+    ticket_doc.status = "Requested Closure"
 
     ticket_doc.flags.ignore_links = True
     ticket_doc.save(ignore_permissions=True)
@@ -328,7 +328,7 @@ def get_resolution_satisfaction_permissions(ticket_id: str | int) -> Dict[str, b
         can_reject = False
         can_mark_satisfied = False
 
-    if ticket_doc.status not in ["Resolved", "Closed"]:
+    if ticket_doc.status not in ["Requested Closure", "Closed"]:
         can_reject = False
         can_mark_satisfied = False
 

@@ -177,7 +177,7 @@ def get_sla_fulfilled_count(from_date, to_date, conds=""):
     prev_month_fulfilled = result[0].prev_month_fulfilled or 0
 
     # Only these tickets should be counted
-    conds += " AND status in ('Resolved', 'Closed')"
+    conds += " AND status in ('Requested Closure', 'Closed')"
 
     ticket_count = (
         get_ticket_count(from_date, to_date, conds, True)[0] if len(result) > 0 else 1
@@ -274,13 +274,13 @@ def get_avg_resolution_time(from_date, to_date, conds=""):
         f"""
         SELECT 
             AVG(CASE 
-                WHEN status in ('Resolved', 'Closed') AND creation >= %(from_date)s AND creation < DATE_ADD(%(to_date)s, INTERVAL 1 DAY)
+                WHEN status in ('Requested Closure', 'Closed') AND creation >= %(from_date)s AND creation < DATE_ADD(%(to_date)s, INTERVAL 1 DAY)
                 {conds}
                 THEN TIMESTAMPDIFF(DAY, creation, resolution_date)
                 ELSE NULL
             END) as current_month_avg,
             AVG(CASE 
-                When status in ('Resolved', 'Closed') AND creation >= %(prev_from_date)s AND creation < %(from_date)s
+                When status in ('Requested Closure', 'Closed') AND creation >= %(prev_from_date)s AND creation < %(from_date)s
                 {conds}
                 THEN TIMESTAMPDIFF(DAY, creation, resolution_date)
                 ELSE NULL
@@ -523,7 +523,7 @@ def get_ticket_trend_data(from_date, to_date, conds=""):
             SELECT 
                 DATE(creation) as date,
                 COUNT(CASE WHEN status = 'Open' THEN name END) as open,
-                COUNT(CASE WHEN status IN ('Resolved', 'Closed') THEN name END) as closed,
+                COUNT(CASE WHEN status IN ('Requested Closure', 'Closed') THEN name END) as closed,
                 COUNT(CASE WHEN agreement_status = 'Fulfilled' THEN name END) as SLA_fulfilled
             FROM `tabHD Ticket`
             WHERE creation > %(from_date)s AND creation < DATE_ADD(%(to_date)s, INTERVAL 1 DAY)

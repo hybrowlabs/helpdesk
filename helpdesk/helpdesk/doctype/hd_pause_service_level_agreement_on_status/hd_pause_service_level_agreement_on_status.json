@@ -13,7 +13,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Open\nReplied\nResolved\nClosed",
+   "options": "Open\nAwaiting User Response\nRequested Closure\nClosed",
    "reqd": 1
   }
  ],

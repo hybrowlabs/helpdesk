@@ -74,7 +74,7 @@ class TicketSummary:
                 }
             )
 
-        self.statuses = ["Open", "Replied", "Resolved", "Closed"]
+        self.statuses = ["Open", "Awaiting User Response", "Requested Closure", "Closed"]
         for status in self.statuses:
             self.columns.append(
                 {
@@ -364,8 +364,8 @@ class TicketSummary:
         for entry in self.data:
             labels.append(entry.get(entity_field))
             open_tickets.append(entry.get("open"))
-            replied_tickets.append(entry.get("replied"))
-            resolved_tickets.append(entry.get("resolved"))
+            replied_tickets.append(entry.get("awaiting_user_response"))
+            resolved_tickets.append(entry.get("requested_closure"))
             closed_tickets.append(entry.get("closed"))
 
         self.chart = {
@@ -373,8 +373,8 @@ class TicketSummary:
                 "labels": labels[:30],
                 "datasets": [
                     {"name": "Open", "values": open_tickets[:30]},
-                    {"name": "Replied", "values": replied_tickets[:30]},
-                    {"name": "Resolved", "values": resolved_tickets[:30]},
+                    {"name": "Awaiting User Response", "values": replied_tickets[:30]},
+                    {"name": "Requested Closure", "values": resolved_tickets[:30]},
                     {"name": "Closed", "values": closed_tickets[:30]},
                 ],
             },
@@ -392,8 +392,8 @@ class TicketSummary:
 
         for entry in self.data:
             open_tickets += entry.get("open")
-            replied += entry.get("replied")
-            resolved += entry.get("resolved")
+            replied += entry.get("awaiting_user_response")
+            resolved += entry.get("requested_closure")
             closed += entry.get("closed")
 
         self.report_summary = [
@@ -406,13 +406,13 @@ class TicketSummary:
             {
                 "value": replied,
                 "indicator": "Grey",
-                "label": _("Replied"),
+                "label": _("Awaiting User Response"),
                 "datatype": "Int",
             },
             {
                 "value": resolved,
                 "indicator": "Green",
-                "label": _("Resolved"),
+                "label": _("Requested Closure"),
                 "datatype": "Int",
             },
             {
