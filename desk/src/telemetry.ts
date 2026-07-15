@@ -5,11 +5,21 @@ import "./lib/posthog.js";
 const APP = "helpdesk";
 const SITENAME = window.location.hostname;
 
+interface PosthogInstance  {
+  init?: (projectId: string, options: Record<string, unknown>) => void;
+  identify?: (id: string) => void;
+  capture?: (event: string, options?: Record<string, unknown>) => void;
+  startSessionRecording?: () => void;
+  stopSessionRecording?: () => void;
+  sessionRecordingStarted?: () => boolean;
+  __loaded?: boolean;
+}
+
 // extend window object to add posthog
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare global {
   interface Window {
-    posthog: any;
+    posthog: PosthogInstance;
   }
 }
 type PosthogSettings = {
@@ -24,8 +34,6 @@ const telemetry = ref({
   project_id: "",
   host: "",
 });
-
-let posthog: typeof window.posthog = window.posthog;
 
 let posthogSettings = createResource({
   url: "helpdesk.api.telemetry.get_posthog_settings",
@@ -45,15 +53,19 @@ function isTelemetryEnabled() {
 
 export async function init(ps: PosthogSettings) {
   if (!isTelemetryEnabled()) return;
+
+  const posthog = window.posthog;
+  if (!posthog?.init) return;
+
   posthog.init(ps.posthog_project_id, {
     api_host: ps.posthog_host,
     autocapture: false,
     person_profiles: "identified_only",
     disable_session_recording: true,
     advanced_disable_decide: true,
-    loaded: (ph: typeof posthog) => {
+    loaded: (ph: PosthogInstance) => {
       window.posthog = ph;
-      ph.identify(SITENAME);
+      ph.identify?.(SITENAME);
     },
   });
 }
@@ -61,7 +73,7 @@ export async function init(ps: PosthogSettings) {
 interface CaptureOptions {
   data: {
     user?: string;
-    [key: string]: string | number | boolean | object;
+    [key: string]: string | number | boolean | object | undefined;
   };
 }
 
@@ -70,13 +82,13 @@ export function capture(
   options: CaptureOptions = { data: { user: "" } }
 ) {
   if (!isTelemetryEnabled()) return;
-  window.posthog.capture(`${APP}_${event}`, options);
+  window.posthog?.capture?.(`${APP}_${event}`, options);
 }
 
 export function recordSession() {
   if (!telemetry.value.enabled) return;
   if (window.posthog && window.posthog.__loaded) {
-    window.posthog.startSessionRecording();
+    window.posthog.startSessionRecording?.();
   }
 }
 
@@ -85,13 +97,13 @@ export function stopSession() {
   if (
     window.posthog &&
     window.posthog.__loaded &&
-    window.posthog.sessionRecordingStarted()
+    window.posthog.sessionRecordingStarted?.()
   ) {
-    window.posthog.stopSessionRecording();
+    window.posthog.stopSessionRecording?.();
   }
 }
 
 export function posthogPlugin(app: any) {
   app.config.globalProperties.posthog = window.posthog;
-  if (!window.posthog?.length) posthogSettings.fetch();
+  if (!window.posthog?.__loaded) posthogSettings.fetch();
 }
