@@ -1,11 +1,11 @@
 import { ref } from "vue";
 import { createResource } from "frappe-ui";
-import "./lib/posthog.js";
 
 const APP = "helpdesk";
 const SITENAME = window.location.hostname;
+const POSTHOG_SCRIPT_SRC = "/assets/frappe/js/lib/posthog.js";
 
-interface PosthogInstance  {
+interface PosthogInstance {
   init?: (projectId: string, options: Record<string, unknown>) => void;
   identify?: (id: string) => void;
   capture?: (event: string, options?: Record<string, unknown>) => void;
@@ -15,13 +15,12 @@ interface PosthogInstance  {
   __loaded?: boolean;
 }
 
-// extend window object to add posthog
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare global {
   interface Window {
-    posthog: PosthogInstance;
+    posthog?: PosthogInstance;
   }
 }
+
 type PosthogSettings = {
   posthog_project_id: string;
   posthog_host: string;
@@ -35,27 +34,53 @@ const telemetry = ref({
   host: "",
 });
 
-let posthogSettings = createResource({
+let posthogScriptPromise: Promise<void> | null = null;
+
+const posthogSettings = createResource({
   url: "helpdesk.api.telemetry.get_posthog_settings",
   cache: "posthog_settings",
   onSuccess: (ps: PosthogSettings) => init(ps),
 });
 
-function isTelemetryEnabled() {
-  if (!posthogSettings.data) return false;
+function isTelemetryEnabled(ps?: PosthogSettings) {
+  const settings = ps || posthogSettings.data;
+  if (!settings) return false;
 
-  return (
-    posthogSettings.data.enable_telemetry &&
-    posthogSettings.data.posthog_project_id &&
-    posthogSettings.data.posthog_host
+  return Boolean(
+    settings.enable_telemetry &&
+      settings.posthog_project_id &&
+      settings.posthog_host
   );
 }
 
+function loadPosthog() {
+  if (window.posthog?.init) return Promise.resolve();
+
+  if (!posthogScriptPromise) {
+    posthogScriptPromise = new Promise((resolve) => {
+      const script = document.createElement("script");
+      script.src = POSTHOG_SCRIPT_SRC;
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => resolve();
+      document.head.appendChild(script);
+    });
+  }
+
+  return posthogScriptPromise;
+}
+
 export async function init(ps: PosthogSettings) {
-  if (!isTelemetryEnabled()) return;
+  if (!isTelemetryEnabled(ps)) return;
+
+  await loadPosthog();
 
   const posthog = window.posthog;
   if (!posthog?.init) return;
+
+  telemetry.value.enabled = true;
+  telemetry.value.project_id = ps.posthog_project_id;
+  telemetry.value.host = ps.posthog_host;
 
   posthog.init(ps.posthog_project_id, {
     api_host: ps.posthog_host,
@@ -87,18 +112,14 @@ export function capture(
 
 export function recordSession() {
   if (!telemetry.value.enabled) return;
-  if (window.posthog && window.posthog.__loaded) {
+  if (window.posthog?.__loaded) {
     window.posthog.startSessionRecording?.();
   }
 }
 
 export function stopSession() {
   if (!telemetry.value.enabled) return;
-  if (
-    window.posthog &&
-    window.posthog.__loaded &&
-    window.posthog.sessionRecordingStarted?.()
-  ) {
+  if (window.posthog?.__loaded && window.posthog.sessionRecordingStarted?.()) {
     window.posthog.stopSessionRecording?.();
   }
 }
