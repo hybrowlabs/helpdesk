@@ -128,6 +128,10 @@
                   }
                 "
               />
+              <AccountOpeningTab
+                v-else-if="tab.name === 'account_opening'"
+                :ticket-id="ticketId"
+              />
               <TicketAgentActivities
                 v-else
                 ref="ticketAgentActivitiesRef"
@@ -297,9 +301,10 @@ import {
   call,
   createResource,
   toast,
+  type DropdownProps,
 } from "frappe-ui";
 import { computed, h, onMounted, onUnmounted, provide, ref, watch } from "vue";
-import { useRoute, useRouter } from "vue-router";
+import { useRoute, useRouter, type RouteLocationRaw } from "vue-router";
 import { storeToRefs } from "pinia";
 
 import {
@@ -313,12 +318,14 @@ import {
 import {
   ActivityIcon,
   CommentIcon,
+  DetailsIcon,
   EmailIcon,
   IndicatorIcon,
   TicketIcon,
 } from "@/components/icons";
 import { TicketAgentActivities, TicketAgentSidebar } from "@/components/ticket";
 import TicketResolutionSection from "@/components/ticket/TicketResolutionSection.vue";
+import AccountOpeningTab from "@/components/ticket/AccountOpeningTab.vue";
 import { setupCustomizations } from "@/composables/formCustomisation";
 import { useView } from "@/composables/useView";
 import { socket } from "@/socket";
@@ -355,16 +362,12 @@ const communicationAreaRef = ref(null);
 const renameSubject = ref("");
 const isLoading = ref(false);
 
-// Request Closure dialog state
 const showRequestClosureDialog = ref(false);
 const requestClosureNotes = ref("");
 const requestClosureLoading = ref(false);
 const requestClosureError = ref("");
 
-// HD Setting: when enabled, the resolution description field is hidden in the
-// Request Closure / Close dialogs and submitted with a default value of
-// "resolved". HD Settings is a Single doctype, so use get_single_value (returns
-// the field value directly).
+
 const resolutionMandatorySetting = createResource({
   url: "frappe.client.get_single_value",
   cache: true,
@@ -439,8 +442,18 @@ function updateField(name: string, value: string, callback = () => {}) {
   callback();
 }
 
-const breadcrumbs = computed(() => {
-  let items = [{ label: "Tickets", route: { name: "TicketsAgent" } }];
+
+interface Breadcrumb {
+  label: string;
+  icon?: unknown;
+  route?: RouteLocationRaw;
+  onClick?: () => void;
+}
+
+const breadcrumbs = computed<Breadcrumb[]>(() => {
+  const items: Breadcrumb[] = [
+    { label: "Tickets", route: { name: "TicketsAgent" } },
+  ];
   if (route.query.view) {
     const currView: ComputedRef<View> = findView(route.query.view as string);
     if (currView) {
@@ -468,8 +481,7 @@ const isRaiser = computed(() => {
 const isRaisedForCurrentUser = computed(() => {
   if (!ticket.data || !currentUserId.value) return false;
   // Check if ticket was raised for another employee and current user is that employee
-  // Since custom_raise_for_employee stores Employee ID, we need to check if raised_by matches current user
-  // The backend should have already set raised_by to the employee's user_id
+
   if (ticket.data.custom_raise_for_employee) {
     return ticket.data.raised_by === currentUserId.value;
   }
@@ -601,9 +613,7 @@ const canMarkSatisfied = computed(() => {
   if (!ticket.data.resolution_ever_submitted) {
     return false;
   }
-  // Check if resolution is not already marked as satisfied by checking history
-  // For now, allow marking satisfied if ticket is in Requested Closure status
-  // User can mark satisfied if they are the raised_by user
+ 
   if (ticket.data.raised_by === currentUserId.value) {
     return true;
   }
@@ -624,16 +634,20 @@ const handleRename = () => {
   showSubjectDialog.value = false;
 };
 
-const dropdownOptions = computed(() =>
-  ticketStatusStore.options.map((o) => ({
-    label: o,
-    value: o,
-    onClick: () => updateTicket("status", o),
-    icon: () =>
-      h(IndicatorIcon, {
-        class: ticketStatusStore.textColorMap[o],
-      }),
-  }))
+// frappe-ui types `DropdownOption.icon` as a string, but Dropdown.vue also
+// renders it through `<component :is>` — which is how the status indicator dot
+// is drawn here. The cast keeps that behaviour without widening the option type.
+const dropdownOptions = computed(
+  () =>
+    ticketStatusStore.options.map((o) => ({
+      label: o,
+      value: o,
+      onClick: () => updateTicket("status", o),
+      icon: () =>
+        h(IndicatorIcon, {
+          class: ticketStatusStore.textColorMap[o],
+        }),
+    })) as unknown as DropdownProps["options"]
 );
 
 // watch(
@@ -644,6 +658,17 @@ const dropdownOptions = computed(() =>
 //   },
 //   { deep: true }
 // );
+
+// Account opening tickets are identified by their HD Category, which is what
+// the intake form sets (see TicketNew.vue). Checked here rather than by asking
+// the service, so the tab can be decided without a fetch.
+const ACCOUNT_OPENING_CATEGORY = "Account Opening";
+
+const isAccountOpeningTicket = computed(
+  () =>
+    (ticket.data?.custom_category || "").trim().toLowerCase() ===
+    ACCOUNT_OPENING_CATEGORY.toLowerCase()
+);
 
 const tabIndex = ref(0);
 const tabs = computed(() => {
@@ -664,10 +689,17 @@ const tabs = computed(() => {
       icon: CommentIcon,
     },
   ];
-  
-  // Only show Resolution tab if ticket has been replied to or is in later stages.
-  // Also hidden when the resolution description is not mandatory (closure is
-  // requested directly without collecting a resolution).
+
+  // The Data tab is the Account Opening view; it is only meaningful for
+  // tickets of that type, so it is hidden everywhere else.
+  if (isAccountOpeningTicket.value) {
+    baseTabs.push({
+      name: "account_opening",
+      label: "Data",
+      icon: DetailsIcon,
+    });
+  }
+
   const allowedStatuses = ["Awaiting User Response", "Requested Closure", "Closed", "Reopened"];
   if (
     !resolutionDescriptionNotMandatory.value &&
@@ -729,7 +761,7 @@ const activities = computed(() => {
   );
 
   const sorted = [...emailProps, ...commentProps].sort(
-    (a, b) => new Date(a.creation) - new Date(b.creation)
+    (a, b) => new Date(a.creation).getTime() - new Date(b.creation).getTime()
   );
 
   const data = [];

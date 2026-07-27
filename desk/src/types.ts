@@ -88,6 +88,8 @@ export interface Ticket {
   status: string;
   subject: string;
   ticket_type: string;
+  custom_category?: string;
+  custom_sub_category?: string;
   via_customer_portal: string;
   agreement_status: string;
   creation: string;
@@ -215,7 +217,13 @@ export interface EmailAccount {
   default_incoming?: boolean;
 }
 
-export type TicketTab = "activity" | "email" | "comment" | "details";
+export type TicketTab =
+  | "activity"
+  | "email"
+  | "comment"
+  | "details"
+  | "resolution"
+  | "account_opening";
 
 export interface TabObject {
   name: TicketTab;
@@ -246,7 +254,7 @@ export interface Article {
   feedback: FeedbackAction;
 }
 
-export type FeedbackAction = 0 | 1 | 2; // 0: neutral, 1: like, 2: dislike
+export type FeedbackAction = 0 | 1 | 2; 
 
 export interface Author {
   name: string;
