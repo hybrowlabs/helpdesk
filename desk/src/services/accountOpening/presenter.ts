@@ -129,6 +129,20 @@ export function getVerificationFields(
   const videoRequired = Boolean(options.videoVerificationRequired);
 
   return [
+    // Identity first: these are what resolve the ticket to an application, so
+    // they are the fields an agent fills before anything else can be fetched.
+    {
+      fieldname: "panNumber",
+      label: t("PAN Number"),
+      fieldtype: "Text",
+      description: t("Used to fetch the application. Format ABCDE1234F."),
+    },
+    {
+      fieldname: "clientId",
+      label: t("Client ID"),
+      fieldtype: "Text",
+      description: t("Used only when no PAN is available."),
+    },
     {
       fieldname: "verificationDoneBy",
       label: t("Verification Done By"),
@@ -181,6 +195,8 @@ export function getVerificationFields(
 /** A blank, valid verification block — the starting point for a fresh record. */
 export function emptyVerification(): VerificationDetails {
   return {
+    panNumber: "",
+    clientId: "",
     verificationDoneBy: "",
     verificationDate: null,
     verifiedRemark: "",
@@ -226,6 +242,10 @@ export function normalizeVerification(
   const date = String(input.verificationDate ?? "").trim();
 
   return {
+    // Upper-cased here as well as on the server, so the field reads back the
+    // way it will be stored without waiting for a round-trip.
+    panNumber: String(input.panNumber ?? "").trim().toUpperCase(),
+    clientId: String(input.clientId ?? "").trim(),
     verificationDoneBy: String(input.verificationDoneBy ?? "").trim(),
     verificationDate: date || null,
     verifiedRemark: String(input.verifiedRemark ?? ""),
@@ -251,6 +271,12 @@ export function validateVerification(
   options: { videoVerificationRequired?: boolean } = {}
 ): Partial<Record<keyof VerificationDetails, string>> {
   const errors: Partial<Record<keyof VerificationDetails, string>> = {};
+
+  // Mirrors _is_valid_pan() on the server. Empty is allowed — a ticket may be
+  // worked before the PAN is known.
+  if (verification.panNumber && !/^[A-Z]{5}\d{4}[A-Z]$/.test(verification.panNumber)) {
+    errors.panNumber = t("PAN must be in the format ABCDE1234F");
+  }
 
   // Any check that has moved off Pending has to say who did it, and when.
   const isResolved =

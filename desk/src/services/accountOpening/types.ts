@@ -109,6 +109,13 @@ export interface AccountOpeningApplication {
 }
 
 export interface VerificationDetails {
+  /**
+   * Client identity, entered by the agent. These resolve the ticket to an
+   * application upstream (PAN first, Client ID as fallback), so they stay
+   * editable before any application has been fetched.
+   */
+  panNumber: string;
+  clientId: string;
   verificationDoneBy: string;
   verificationDate: string | null;
   verifiedRemark: string;
@@ -130,7 +137,12 @@ export interface AccountOpeningMeta {
 }
 
 export interface AccountOpeningRecord {
-  application: AccountOpeningApplication;
+  /**
+   * Null when no application resolved — the ticket carries no identifier yet,
+   * or the lookup found nothing. The verification block is still present, so
+   * the Form tab can collect the PAN / Client ID that will resolve it.
+   */
+  application: AccountOpeningApplication | null;
   verification: VerificationDetails;
   meta: AccountOpeningMeta;
 }

@@ -241,6 +241,8 @@ const FIXTURES: readonly ApplicationFixture[] = [
 /** Pre-filled verification for one fixture, so the Form tab isn't always blank. */
 const SEEDED_VERIFICATION: Readonly<Record<string, VerificationDetails>> = {
   "AO-2026-004907": {
+    panNumber: "ABCDE1234F",
+    clientId: "PC10023456",
     verificationDoneBy: "Administrator",
     verificationDate: "2026-07-21",
     verifiedRemark: "Client confirmed PAN and bank details over call.",
@@ -287,7 +289,10 @@ export class MockAccountOpeningService implements AccountOpeningService {
     const application = applicationForTicket(ticketId);
     const stored = savedVerification.get(ticketId);
     const verification = normalizeVerification(
-      stored ?? SEEDED_VERIFICATION[application.applicationNo]
+      stored ?? SEEDED_VERIFICATION[application.applicationNo] ?? {
+        panNumber: application.panNumber,
+        clientId: application.clientId,
+      }
     );
 
     return {

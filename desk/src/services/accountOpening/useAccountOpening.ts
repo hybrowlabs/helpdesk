@@ -142,18 +142,24 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
     }
   }
 
+  // "No application" — either nothing came back at all, or a record came back
+  // with no application resolved. The Form tab still renders in the second
+  // case, so the agent can enter the PAN / Client ID that will resolve one.
   const isEmpty = computed(
-    () => !loading.value && !error.value && record.value === null
+    () =>
+      !loading.value &&
+      !error.value &&
+      (record.value === null || record.value.application === null)
   );
 
   const detailRows = computed(() =>
-    record.value ? toDetailRows(record.value.application) : []
+    record.value?.application ? toDetailRows(record.value.application) : []
   );
 
   // The compliance flag is decided by the server from the client's age; the
   // form only reflects it.
   const videoVerificationRequired = computed(() =>
-    Boolean(record.value?.application.videoVerificationRequired)
+    Boolean(record.value?.application?.videoVerificationRequired)
   );
 
   const fields = computed(() =>
@@ -169,6 +175,8 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
     );
   });
 
+  // Editable as soon as a record exists, application or not — entering the
+  // identifier is precisely what the agent does when there is no application.
   const canEdit = computed(() => Boolean(record.value) && !loading.value);
 
   watch(() => toValue(ticketId), load, { immediate: true });

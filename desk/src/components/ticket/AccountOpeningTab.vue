@@ -80,9 +80,10 @@
         <Button class="mt-2" :label="t('Try again')" @click="reload" />
       </div>
 
-      <!-- Empty -->
+      <!-- Empty: only on Details. The Form tab stays available so the agent can
+           enter the PAN / Client ID that will resolve an application. -->
       <div
-        v-else-if="isEmpty"
+        v-else-if="isEmpty && activeSubTab === 'details'"
         class="flex flex-col items-center justify-center gap-2 py-16 text-center"
       >
         <FeatherIcon name="file-text" class="h-6 w-6 text-gray-400" />
@@ -90,9 +91,18 @@
           {{ t("No account opening application") }}
         </p>
         <p class="max-w-md text-p-sm text-gray-600">
-          {{ t("This ticket is not linked to an account opening application yet.") }}
+          {{
+            t(
+              "Enter the client's PAN Number on the Form tab, save, then press Fetch to load their application."
+            )
+          }}
         </p>
-        <Button class="mt-2" :label="t('Fetch')" @click="reload" />
+        <Button
+          class="mt-2"
+          :label="t('Go to Form')"
+          variant="solid"
+          @click="activeSubTab = 'form'"
+        />
       </div>
 
       <!-- Details: two-column read-only layout -->
@@ -112,6 +122,20 @@
 
       <!-- Form: editable verification fields -->
       <div v-else class="flex flex-col gap-4">
+        <div
+          v-if="isEmpty"
+          class="flex items-start gap-2 rounded border border-blue-200 bg-blue-50 px-3 py-2"
+        >
+          <FeatherIcon name="info" class="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+          <p class="text-p-sm text-blue-900">
+            {{
+              t(
+                "No application is linked yet. Enter the PAN Number (or Client ID), press Save, then press Fetch."
+              )
+            }}
+          </p>
+        </div>
+
         <!-- Compliance rule, stated where the agent has to act on it. -->
         <div
           v-if="videoVerificationRequired"
