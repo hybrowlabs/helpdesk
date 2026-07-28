@@ -10,6 +10,13 @@ export {
 export { useAccountOpening, type UseAccountOpening } from "./useAccountOpening";
 
 export {
+  useTicketWorkflow,
+  type UseTicketWorkflow,
+} from "./useTicketWorkflow";
+
+export { applyWorkflowAction, fetchWorkflowStatus } from "./workflow";
+
+export {
   EMPTY_VALUE,
   computeAge,
   emptyVerification,
@@ -30,6 +37,7 @@ export {
   type AccountOpeningApplication,
   type AccountOpeningEnvelope,
   type AccountOpeningErrorCode,
+  type AccountOpeningIdentifier,
   type AccountOpeningRecord,
   type AccountOpeningService,
   type CallVerificationStatus,
@@ -38,6 +46,9 @@ export {
   type SignatureVerificationStatus,
   type VerificationDetails,
   type VideoVerificationStatus,
+  type WorkflowStatus,
+  type WorkflowStyle,
+  type WorkflowTransition,
 } from "./types";
 
 export {

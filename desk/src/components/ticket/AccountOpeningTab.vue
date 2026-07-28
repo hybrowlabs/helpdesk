@@ -10,22 +10,44 @@
         >
           <Badge variant="subtle" theme="orange" size="sm" :label="t('Mock data')" />
         </Tooltip>
+        <!-- Which unique identifier resolved this record upstream. -->
+        <Tooltip v-if="identifierLabel" :text="t('The application was looked up with this identifier')">
+          <Badge variant="subtle" theme="gray" size="sm" :label="identifierLabel" />
+        </Tooltip>
       </div>
 
-      <div v-if="activeSubTab === 'form'" class="flex items-center gap-2">
-        <Button
-          v-if="isDirty"
-          :label="t('Discard')"
-          :disabled="saving"
-          @click="revert"
-        />
-        <Button
-          :label="t('Save')"
-          variant="solid"
-          :loading="saving"
-          :disabled="!canEdit || !isDirty"
-          @click="onSave"
-        />
+      <div class="flex items-center gap-2">
+        <Tooltip :text="refreshTooltip">
+          <!-- span keeps the tooltip alive while the button is disabled -->
+          <span>
+            <Button
+              :label="t('Refresh')"
+              :loading="loading"
+              :disabled="refreshDisabled"
+              @click="reload"
+            >
+              <template #prefix>
+                <FeatherIcon name="refresh-cw" class="h-4 w-4" />
+              </template>
+            </Button>
+          </span>
+        </Tooltip>
+
+        <template v-if="activeSubTab === 'form'">
+          <Button
+            v-if="isDirty"
+            :label="t('Discard')"
+            :disabled="saving"
+            @click="revert"
+          />
+          <Button
+            :label="t('Save')"
+            variant="solid"
+            :loading="saving"
+            :disabled="!canEdit || !isDirty"
+            @click="onSave"
+          />
+        </template>
       </div>
     </div>
 
@@ -137,6 +159,7 @@ const subTabs = computed(() => [
 ]);
 
 const {
+  record,
   loading,
   saving,
   error,
@@ -155,6 +178,23 @@ const {
   revert,
   setField,
 } = useAccountOpening(() => props.ticketId);
+
+const identifierLabel = computed(() => {
+  const identifier = record.value?.meta?.identifier;
+  if (!identifier?.value) return "";
+
+  const kind = identifier.kind === "pan" ? t("PAN") : t("Client ID");
+  return `${kind} ${identifier.value}`;
+});
+
+// Refetching would silently throw away unsaved edits, so it waits.
+const refreshDisabled = computed(() => loading.value || saving.value || isDirty.value);
+
+const refreshTooltip = computed(() =>
+  isDirty.value
+    ? t("Save or discard your changes before refreshing")
+    : t("Fetch the latest application details")
+);
 
 const errorTitle = computed(() => {
   switch (error.value?.code) {

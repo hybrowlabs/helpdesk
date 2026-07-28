@@ -32,6 +32,13 @@
         >
           Assign
         </button>
+        <!-- FR-10 workflow. The desk app is a Vue SPA, so it does not inherit
+             the Frappe desk's own workflow bar — this is its replacement. -->
+        <TicketWorkflowActions
+          v-if="isAccountOpeningTicket"
+          :ticket-id="ticketId"
+          @updated="ticket.reload()"
+        />
         <Dropdown v-if="!ticketStatusStore.makeAgentStatusReadOnly" :options="dropdownOptions">
           <template #default="{ open }">
             <Button :label="ticket.data.status">
@@ -326,6 +333,7 @@ import {
 import { TicketAgentActivities, TicketAgentSidebar } from "@/components/ticket";
 import TicketResolutionSection from "@/components/ticket/TicketResolutionSection.vue";
 import AccountOpeningTab from "@/components/ticket/AccountOpeningTab.vue";
+import TicketWorkflowActions from "@/components/ticket/TicketWorkflowActions.vue";
 import { setupCustomizations } from "@/composables/formCustomisation";
 import { useView } from "@/composables/useView";
 import { socket } from "@/socket";
