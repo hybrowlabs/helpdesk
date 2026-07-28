@@ -21,7 +21,7 @@
           <!-- span keeps the tooltip alive while the button is disabled -->
           <span>
             <Button
-              :label="t('Refresh')"
+              :label="t('Fetch')"
               :loading="loading"
               :disabled="refreshDisabled"
               @click="reload"
@@ -92,7 +92,7 @@
         <p class="max-w-md text-p-sm text-gray-600">
           {{ t("This ticket is not linked to an account opening application yet.") }}
         </p>
-        <Button class="mt-2" :label="t('Refresh')" @click="reload" />
+        <Button class="mt-2" :label="t('Fetch')" @click="reload" />
       </div>
 
       <!-- Details: two-column read-only layout -->
