@@ -223,7 +223,10 @@ export type TicketTab =
   | "comment"
   | "details"
   | "resolution"
-  | "account_opening";
+  | "account_opening"
+  | "client_modification";
+  
+    
 
 export interface TabObject {
   name: TicketTab;

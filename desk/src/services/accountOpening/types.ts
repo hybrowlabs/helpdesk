@@ -221,10 +221,12 @@ export interface DetailRow {
 }
 
 
-export interface FormFieldDescriptor {
-  fieldname: keyof VerificationDetails;
+export interface FormFieldDescriptor<
+  TField extends string = keyof VerificationDetails,
+> {
+  fieldname: TField;
   label: string;
-  fieldtype: "Text" | "Date" | "TextArea" | "Select" | "Link";
+  fieldtype: "Text" | "Date" | "TextArea" | "Select" | "Link" | "Checkbox";
   options?: string;
   required?: 0 | 1;
   description?: string;

@@ -57,7 +57,10 @@ import {
 import { computed, h } from "vue";
 
 const props = defineProps<{
+  /** The record the workflow runs on. An HD Ticket unless `doctype` says otherwise. */
   ticketId: string | number;
+  /** Omit for HD Ticket (FR-10). FR-14 passes "Client Modification". */
+  doctype?: string;
 }>();
 
 const emit = defineEmits<{
@@ -74,7 +77,10 @@ const {
   applying,
   error,
   apply,
-} = useTicketWorkflow(() => props.ticketId);
+} = useTicketWorkflow(
+  () => props.ticketId,
+  () => props.doctype
+);
 
 // Only when there is genuinely nothing to show and a retry is not in flight —
 // a failed *action* keeps the badge, since the state is still known.
@@ -94,9 +100,9 @@ const BADGE_THEMES: Record<WorkflowStyle, "gray" | "blue" | "green" | "orange" |
 
 const badgeTheme = computed(() => BADGE_THEMES[style.value] ?? "gray");
 
-const stateTooltip = computed(() =>
-  t("Account opening workflow state")
-);
+// Drives both FR-10 (HD Ticket) and FR-14 (Client Modification), so the label
+// cannot name either flow.
+const stateTooltip = computed(() => t("Workflow state"));
 
 async function onAction(transition: WorkflowTransition): Promise<void> {
   const result = await apply(transition.action);

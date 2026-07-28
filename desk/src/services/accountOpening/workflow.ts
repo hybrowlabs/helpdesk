@@ -48,12 +48,18 @@ function normalizeStatus(raw: WorkflowStatus | null): WorkflowStatus {
   };
 }
 
+/**
+ * `doctype` defaults to HD Ticket (FR-10). FR-14 passes "Client Modification",
+ * which carries its own, entirely separate workflow — Frappe allows one active
+ * workflow per DocType, so separate flows mean separate DocTypes.
+ */
 export async function fetchWorkflowStatus(
-  ticketId: string
+  docname: string,
+  doctype?: string
 ): Promise<WorkflowStatus> {
   let envelope: AccountOpeningEnvelope<WorkflowStatus>;
   try {
-    envelope = await call(METHODS.status, { ticket_id: ticketId });
+    envelope = await call(METHODS.status, { ticket_id: docname, doctype });
   } catch (cause) {
     throw toAccountOpeningError(cause);
   }
@@ -66,8 +72,9 @@ export async function fetchWorkflowStatus(
  * every validation, so a stale menu is rejected rather than trusted.
  */
 export async function applyWorkflowAction(
-  ticketId: string,
-  action: string
+  docname: string,
+  action: string,
+  doctype?: string
 ): Promise<WorkflowStatus> {
   if (!action) {
     throw new AccountOpeningError("VALIDATION", "No workflow action given");
@@ -76,8 +83,9 @@ export async function applyWorkflowAction(
   let envelope: AccountOpeningEnvelope<WorkflowStatus>;
   try {
     envelope = await call(METHODS.apply, {
-      ticket_id: ticketId,
+      ticket_id: docname,
       action,
+      doctype,
     });
   } catch (cause) {
     throw toAccountOpeningError(cause);

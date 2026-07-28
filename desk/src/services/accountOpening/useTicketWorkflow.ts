@@ -21,7 +21,10 @@ const EMPTY_STATUS: WorkflowStatus = {
   transitions: [],
 };
 
-export function useTicketWorkflow(ticketId: MaybeRefOrGetter<string | number>) {
+export function useTicketWorkflow(
+  docname: MaybeRefOrGetter<string | number>,
+  doctype?: MaybeRefOrGetter<string | undefined>
+) {
   const status = ref<WorkflowStatus>({ ...EMPTY_STATUS });
   const loading = ref(false);
   const applying = ref(false);
@@ -32,7 +35,7 @@ export function useTicketWorkflow(ticketId: MaybeRefOrGetter<string | number>) {
   let requestToken = 0;
 
   async function load(): Promise<void> {
-    const id = String(toValue(ticketId) ?? "");
+    const id = String(toValue(docname) ?? "");
     if (!id) {
       status.value = { ...EMPTY_STATUS };
       return;
@@ -43,7 +46,7 @@ export function useTicketWorkflow(ticketId: MaybeRefOrGetter<string | number>) {
     error.value = null;
 
     try {
-      const result = await fetchWorkflowStatus(id);
+      const result = await fetchWorkflowStatus(id, toValue(doctype));
       if (token !== requestToken) return;
       status.value = result;
     } catch (cause) {
@@ -57,7 +60,7 @@ export function useTicketWorkflow(ticketId: MaybeRefOrGetter<string | number>) {
 
   /** Returns the new status on success, or null with `error` set on failure. */
   async function apply(action: string): Promise<WorkflowStatus | null> {
-    const id = String(toValue(ticketId) ?? "");
+    const id = String(toValue(docname) ?? "");
     if (!id || applying.value) return null;
 
     const token = ++requestToken;
@@ -65,7 +68,7 @@ export function useTicketWorkflow(ticketId: MaybeRefOrGetter<string | number>) {
     error.value = null;
 
     try {
-      const result = await applyWorkflowAction(id, action);
+      const result = await applyWorkflowAction(id, action, toValue(doctype));
       if (token === requestToken) status.value = result;
       return result;
     } catch (cause) {
@@ -94,7 +97,7 @@ export function useTicketWorkflow(ticketId: MaybeRefOrGetter<string | number>) {
   );
 
   watch(
-    () => toValue(ticketId),
+    () => [toValue(docname), toValue(doctype)],
     () => {
       void load();
     },

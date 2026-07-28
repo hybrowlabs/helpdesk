@@ -39,6 +39,12 @@
           :ticket-id="ticketId"
           @updated="ticket.reload()"
         />
+        <TicketWorkflowActions
+          v-else-if="isModificationTicket && modificationCaseName"
+          :ticket-id="modificationCaseName"
+          doctype="Client Modification"
+          @updated="ticket.reload()"
+        />
         <Dropdown v-if="!ticketStatusStore.makeAgentStatusReadOnly" :options="dropdownOptions">
           <template #default="{ open }">
             <Button :label="ticket.data.status">
@@ -138,6 +144,16 @@
               <AccountOpeningTab
                 v-else-if="tab.name === 'account_opening'"
                 :ticket-id="ticketId"
+              />
+              <ClientModificationTab
+                v-else-if="tab.name === 'client_modification'"
+                :ticket-id="ticketId"
+                @updated="
+                  () => {
+                    ticket.reload();
+                    reloadModificationCase();
+                  }
+                "
               />
               <TicketAgentActivities
                 v-else
@@ -334,6 +350,8 @@ import { TicketAgentActivities, TicketAgentSidebar } from "@/components/ticket";
 import TicketResolutionSection from "@/components/ticket/TicketResolutionSection.vue";
 import AccountOpeningTab from "@/components/ticket/AccountOpeningTab.vue";
 import TicketWorkflowActions from "@/components/ticket/TicketWorkflowActions.vue";
+import ClientModificationTab from "@/components/ticket/ClientModificationTab.vue";
+import { useModificationCase } from "@/services/clientModification";
 import { setupCustomizations } from "@/composables/formCustomisation";
 import { useView } from "@/composables/useView";
 import { socket } from "@/socket";
@@ -678,6 +696,24 @@ const isAccountOpeningTicket = computed(
     ACCOUNT_OPENING_CATEGORY.toLowerCase()
 );
 
+// FR-14. Same gate as above, on the "Modification" HD Category.
+const MODIFICATION_CATEGORY = "Modification";
+
+const isModificationTicket = computed(
+  () =>
+    (ticket.data?.custom_category || "").trim().toLowerCase() ===
+    MODIFICATION_CATEGORY.toLowerCase()
+);
+
+// FR-14 cases carry their own workflow on their own DocType, so the header's
+// Actions menu has to be pointed at the case rather than the ticket. Resolved
+// here so it works whichever tab is open.
+const { caseName: modificationCaseName, reload: reloadModificationCase } =
+  useModificationCase(
+    () => props.ticketId,
+    () => isModificationTicket.value
+  );
+
 const tabIndex = ref(0);
 const tabs = computed(() => {
   const baseTabs: TabObject[] = [
@@ -704,6 +740,15 @@ const tabs = computed(() => {
     baseTabs.push({
       name: "account_opening",
       label: "Data",
+      icon: DetailsIcon,
+    });
+  }
+
+  // FR-14 client modification case, on its own category.
+  if (isModificationTicket.value) {
+    baseTabs.push({
+      name: "client_modification",
+      label: "Modification",
       icon: DetailsIcon,
     });
   }
