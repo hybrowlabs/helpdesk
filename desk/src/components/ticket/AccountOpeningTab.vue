@@ -7,11 +7,14 @@
         <Tooltip v-if="hasCase" :text="t('Account opening case')">
           <Badge variant="subtle" theme="blue" size="sm" :label="caseName" />
         </Tooltip>
+        <!-- Only the Details sub-tab is dummy: the case and everything saved on
+             it are real. Labelled accordingly so nobody reads the badge as
+             "nothing here is saved". -->
         <Tooltip
           v-if="isMock"
-          :text="t('Showing dummy data. Set VITE_ACCOUNT_OPENING_SOURCE=api to use the live service.')"
+          :text="t('The application shown on Details is dummy data — the vendor lookup is not configured yet. Everything you enter on Form is saved for real. Set VITE_ACCOUNT_OPENING_SOURCE=api once the vendor endpoint exists.')"
         >
-          <Badge variant="subtle" theme="orange" size="sm" :label="t('Mock data')" />
+          <Badge variant="subtle" theme="orange" size="sm" :label="t('Mock application')" />
         </Tooltip>
         <!-- Which unique identifier resolved this record upstream. -->
         <Tooltip v-if="identifierLabel" :text="t('The application was looked up with this identifier')">

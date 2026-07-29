@@ -1,26 +1,27 @@
 /**
- * Account Opening — mock adapter.
+ * Account Opening — mock adapter for the vendor application.
  *
- * Serves dummy data in exactly the shape `api.ts` will return, so the UI can be
- * built and demoed before the real endpoint exists. Swapping to live is a
- * config change in `index.ts`; nothing in the components or presenter changes.
+ * Serves a dummy application in exactly the shape `api.ts` will return, so the
+ * Details sub-tab can be built and demoed before PhillipCapital's account
+ * opening service exists. Swapping to live is a config change in `service.ts`;
+ * nothing in the components or presenter changes.
+ *
+ * It mocks *only* the application. The case, its verification block and the
+ * workflow are real Frappe data with real endpoints, and are delegated to
+ * `HttpAccountOpeningService` — see the class docstring for why faking them
+ * actively breaks the ticket header.
  *
  * Behaviour worth knowing:
- *  - Records are deterministic per ticket (hashed into a fixture list), so a
- *    given ticket always shows the same client across reloads.
- *  - Saves persist in-memory for the session, so the Form tab round-trips.
+ *  - Applications are deterministic per ticket (hashed into a fixture list), so
+ *    a given ticket always shows the same client across reloads.
  *  - `setMockScenario()` forces the empty and error branches for QA.
  */
 
-import {
-  computeAge,
-  isVideoVerificationRequired,
-  normalizeVerification,
-} from "./presenter";
+import { HttpAccountOpeningService } from "./api";
+import { computeAge, isVideoVerificationRequired } from "./presenter";
 import {
   AccountOpeningError,
   type AccountOpeningApplication,
-  type AccountOpeningCase,
   type AccountOpeningRecord,
   type AccountOpeningService,
   type VerificationDetails,
@@ -239,37 +240,9 @@ const FIXTURES: readonly ApplicationFixture[] = [
   },
 ];
 
-/** Pre-filled verification for one fixture, so the Form tab isn't always blank. */
-const SEEDED_VERIFICATION: Readonly<Record<string, VerificationDetails>> = {
-  "AO-2026-004907": {
-    panNumber: "ABCDE1234F",
-    clientId: "PC10023456",
-    clientName: "Suresh Iyer",
-    clientDateOfBirth: "1981-09-30",
-    verificationDoneBy: "Administrator",
-    verificationDate: "2026-07-21",
-    verifiedRemark: "Client confirmed PAN and bank details over call.",
-    extensionNumber: "3187",
-    callVerificationStatus: "Done",
-    signatureVerificationStatus: "Verified",
-    videoVerificationStatus: "Pending",
-  },
-};
-
-/** In-memory saves, keyed by ticket. Cleared on reload — mock only. */
-const savedVerification = new Map<string, VerificationDetails>();
-
-/**
- * Which tickets have a case open, and under what name. Mirrors the real
- * one-case-per-ticket rule; a ticket starts without one so the tab's "open a
- * case" branch is reachable in the mock.
- */
-const openCases = new Map<string, string>();
-
 /** Reset session state between demos or tests. */
 export function resetMockStore(): void {
-  savedVerification.clear();
-  openCases.clear();
+  scenario = "success";
 }
 
 function applicationForTicket(ticketId: string): AccountOpeningApplication {
@@ -283,55 +256,24 @@ function applicationForTicket(ticketId: string): AccountOpeningApplication {
   };
 }
 
-function caseNumber(ticketId: string): string {
-  return `AO${String((hash(ticketId) % 9999) + 1).padStart(4, "0")}`;
-}
-
-function caseForTicket(
-  ticketId: string,
-  verification: VerificationDetails
-): AccountOpeningCase | null {
-  const name = openCases.get(ticketId);
-  if (!name) return null;
-
-  const age = computeAge(verification.clientDateOfBirth);
-  const videoRequired = isVideoVerificationRequired(age);
-
-  return {
-    name,
-    workflowState: "New",
-    clientAge: age,
-    verificationType: videoRequired ? "Video" : "Call",
-    videoVerificationRequired: videoRequired,
-    kycSource: "",
-    kycPdf: "",
-  };
-}
-
-function recordForTicket(ticketId: string): AccountOpeningRecord {
-  const application = applicationForTicket(ticketId);
-  const stored = savedVerification.get(ticketId);
-  const verification = normalizeVerification(
-    stored ?? SEEDED_VERIFICATION[application.applicationNo] ?? {
-      panNumber: application.panNumber,
-      clientId: application.clientId,
-      clientName: application.clientName,
-      clientDateOfBirth: application.dateOfBirth,
-    }
-  );
-
-  return {
-    case: caseForTicket(ticketId, verification),
-    application,
-    verification,
-    meta: {
-      source: "mock",
-      lastUpdatedOn: stored ? new Date().toISOString() : null,
-    },
-  };
-}
-
+/**
+ * Mocks the vendor application and nothing else.
+ *
+ * The `application` block is the only part of this feature with no endpoint
+ * behind it — see ACCOUNT_OPENING_API_CONTRACT.md §6. Everything else is
+ * Frappe-side data served by `pc_helpdesk.customizations.api.account_opening`,
+ * which exists on every site: the case, the verification block stored on it, and
+ * the workflow the ticket header drives.
+ *
+ * Those are therefore delegated to the live adapter rather than faked. A
+ * fabricated case name would be worse than useless — the header resolves the
+ * ticket to a case and asks the *real* workflow endpoint about it, so an
+ * invented `AO9720` comes back as "Workflow unavailable", and a verification
+ * saved into an in-memory Map would be reported as saved and then silently lost.
+ */
 export class MockAccountOpeningService implements AccountOpeningService {
+  private readonly live = new HttpAccountOpeningService();
+
   async fetch(ticketId: string): Promise<AccountOpeningRecord | null> {
     await delay(scenario === "slow" ? SLOW_LATENCY_MS : LATENCY_MS);
 
@@ -341,45 +283,31 @@ export class MockAccountOpeningService implements AccountOpeningService {
         "Mock failure: could not reach the account opening service"
       );
     }
-    if (scenario === "empty") {
-      return null;
-    }
 
-    return recordForTicket(ticketId);
+    const record = await this.live.fetch(ticketId);
+    if (!record || scenario === "empty") return record;
+
+    return {
+      ...record,
+      application: applicationForTicket(ticketId),
+      meta: { ...record.meta, source: "mock" },
+    };
   }
 
   async createCase(ticketId: string): Promise<AccountOpeningRecord> {
-    await delay(scenario === "slow" ? SLOW_LATENCY_MS : LATENCY_MS);
+    const record = await this.live.createCase(ticketId);
 
-    if (scenario === "error") {
-      throw new AccountOpeningError(
-        "NETWORK",
-        "Mock failure: could not open the account opening case"
-      );
-    }
-
-    // Idempotent, like the endpoint it stands in for.
-    if (!openCases.has(ticketId)) {
-      openCases.set(ticketId, caseNumber(ticketId));
-    }
-    return recordForTicket(ticketId);
+    return {
+      ...record,
+      application: applicationForTicket(ticketId),
+      meta: { ...record.meta, source: "mock" },
+    };
   }
 
   async saveVerification(
     ticketId: string,
     verification: VerificationDetails
   ): Promise<VerificationDetails> {
-    await delay(scenario === "slow" ? SLOW_LATENCY_MS : LATENCY_MS);
-
-    if (scenario === "error") {
-      throw new AccountOpeningError(
-        "NETWORK",
-        "Mock failure: could not save verification details"
-      );
-    }
-
-    const normalized = normalizeVerification(verification);
-    savedVerification.set(ticketId, normalized);
-    return normalized;
+    return this.live.saveVerification(ticketId, verification);
   }
 }
