@@ -12,8 +12,22 @@ import {
 
 const METHODS = {
   fetch: "pc_helpdesk.customizations.api.account_opening.get_account_opening",
+  create: "pc_helpdesk.customizations.api.account_opening.create_case",
   save: "pc_helpdesk.customizations.api.account_opening.save_verification",
 } as const;
+
+function normalizeRecord(
+  record: AccountOpeningRecord | null
+): AccountOpeningRecord | null {
+  if (!record) return null;
+
+  // Trust the shape, but keep the enum honest.
+  return {
+    ...record,
+    case: record.case ?? null,
+    verification: normalizeVerification(record.verification),
+  };
+}
 
 export class HttpAccountOpeningService implements AccountOpeningService {
   async fetch(ticketId: string): Promise<AccountOpeningRecord | null> {
@@ -24,14 +38,22 @@ export class HttpAccountOpeningService implements AccountOpeningService {
       throw toAccountOpeningError(cause);
     }
 
-    const record = unwrap(envelope);
-    if (!record) return null;
+    return normalizeRecord(unwrap(envelope));
+  }
 
-    // Trust the shape, but keep the enum honest.
-    return {
-      ...record,
-      verification: normalizeVerification(record.verification),
-    };
+  async createCase(ticketId: string): Promise<AccountOpeningRecord> {
+    let envelope: AccountOpeningEnvelope<AccountOpeningRecord>;
+    try {
+      envelope = await call(METHODS.create, { ticket_id: ticketId });
+    } catch (cause) {
+      throw toAccountOpeningError(cause);
+    }
+
+    const record = normalizeRecord(unwrap(envelope));
+    if (!record?.case) {
+      throw toAccountOpeningError(new Error("Case was not created"));
+    }
+    return record;
   }
 
   async saveVerification(

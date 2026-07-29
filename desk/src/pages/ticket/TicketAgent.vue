@@ -32,11 +32,14 @@
         >
           Assign
         </button>
-        <!-- FR-10 workflow. The desk app is a Vue SPA, so it does not inherit
-             the Frappe desk's own workflow bar — this is its replacement. -->
+        <!-- The desk app is a Vue SPA, so it does not inherit the Frappe desk's
+             own workflow bar — this is its replacement. Both flows run on their
+             own case DocType, so each is pointed at its case rather than at the
+             ticket; the badge is absent until a case has been opened. -->
         <TicketWorkflowActions
-          v-if="isAccountOpeningTicket"
-          :ticket-id="ticketId"
+          v-if="isAccountOpeningTicket && accountOpeningCaseName"
+          :ticket-id="accountOpeningCaseName"
+          doctype="Account Opening"
           @updated="ticket.reload()"
         />
         <TicketWorkflowActions
@@ -144,6 +147,12 @@
               <AccountOpeningTab
                 v-else-if="tab.name === 'account_opening'"
                 :ticket-id="ticketId"
+                @updated="
+                  () => {
+                    ticket.reload();
+                    reloadAccountOpeningCase();
+                  }
+                "
               />
               <ClientModificationTab
                 v-else-if="tab.name === 'client_modification'"
@@ -352,6 +361,7 @@ import AccountOpeningTab from "@/components/ticket/AccountOpeningTab.vue";
 import TicketWorkflowActions from "@/components/ticket/TicketWorkflowActions.vue";
 import ClientModificationTab from "@/components/ticket/ClientModificationTab.vue";
 import { useModificationCase } from "@/services/clientModification";
+import { useAccountOpeningCase } from "@/services/accountOpening";
 import { setupCustomizations } from "@/composables/formCustomisation";
 import { useView } from "@/composables/useView";
 import { socket } from "@/socket";
@@ -705,9 +715,17 @@ const isModificationTicket = computed(
     MODIFICATION_CATEGORY.toLowerCase()
 );
 
-// FR-14 cases carry their own workflow on their own DocType, so the header's
-// Actions menu has to be pointed at the case rather than the ticket. Resolved
-// here so it works whichever tab is open.
+// Both flows carry their workflow on a DocType of their own — Frappe allows one
+// active workflow per DocType — so the header's Actions menu has to be pointed
+// at the case rather than the ticket. Resolved here so it works whichever tab
+// is open, and reloaded when a tab opens a case so the badge appears without a
+// page reload.
+const { caseName: accountOpeningCaseName, reload: reloadAccountOpeningCase } =
+  useAccountOpeningCase(
+    () => props.ticketId,
+    () => isAccountOpeningTicket.value
+  );
+
 const { caseName: modificationCaseName, reload: reloadModificationCase } =
   useModificationCase(
     () => props.ticketId,

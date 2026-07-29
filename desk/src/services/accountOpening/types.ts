@@ -110,12 +110,18 @@ export interface AccountOpeningApplication {
 
 export interface VerificationDetails {
   /**
-   * Client identity, entered by the agent. These resolve the ticket to an
+   * Client identity, entered by the agent. These resolve the case to an
    * application upstream (PAN first, Client ID as fallback), so they stay
    * editable before any application has been fetched.
    */
   panNumber: string;
   clientId: string;
+  clientName: string;
+  /**
+   * Drives the compliance rule server-side: the case's age, and with it
+   * `videoVerificationRequired`, is derived from this and never sent back.
+   */
+  clientDateOfBirth: string | null;
   verificationDoneBy: string;
   verificationDate: string | null;
   verifiedRemark: string;
@@ -136,9 +142,31 @@ export interface AccountOpeningMeta {
   identifier?: AccountOpeningIdentifier | null;
 }
 
+/**
+ * An account opening case document (AO0001…), linked to the ticket it was
+ * raised from. It is its own DocType, not a block of HD Ticket fields, because
+ * Frappe allows exactly one active Workflow per DocType — the only way FR-10 and
+ * FR-14 can both stay live is for each to own a document.
+ */
+export interface AccountOpeningCase {
+  /** The case name, e.g. "AO0001". */
+  name: string;
+  workflowState: string;
+  /** Derived server-side from the date of birth. Never sent back. */
+  clientAge: number | null;
+  verificationType: string;
+  videoVerificationRequired: boolean;
+  kycSource: string;
+  kycPdf: string;
+}
+
+export const CASE_DOCTYPE = "Account Opening";
+
 export interface AccountOpeningRecord {
+  /** Null until a case has been opened against the ticket — an empty state. */
+  case: AccountOpeningCase | null;
   /**
-   * Null when no application resolved — the ticket carries no identifier yet,
+   * Null when no application resolved — the case carries no identifier yet,
    * or the lookup found nothing. The verification block is still present, so
    * the Form tab can collect the PAN / Client ID that will resolve it.
    */
@@ -176,8 +204,11 @@ export class AccountOpeningError extends Error {
 
 
 export interface AccountOpeningService {
- 
+
   fetch(ticketId: string): Promise<AccountOpeningRecord | null>;
+
+  /** Opens a case against the ticket. Idempotent — one case per ticket. */
+  createCase(ticketId: string): Promise<AccountOpeningRecord>;
 
   saveVerification(
     ticketId: string,

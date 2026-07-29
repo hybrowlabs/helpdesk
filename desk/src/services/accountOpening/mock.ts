@@ -20,6 +20,7 @@ import {
 import {
   AccountOpeningError,
   type AccountOpeningApplication,
+  type AccountOpeningCase,
   type AccountOpeningRecord,
   type AccountOpeningService,
   type VerificationDetails,
@@ -243,6 +244,8 @@ const SEEDED_VERIFICATION: Readonly<Record<string, VerificationDetails>> = {
   "AO-2026-004907": {
     panNumber: "ABCDE1234F",
     clientId: "PC10023456",
+    clientName: "Suresh Iyer",
+    clientDateOfBirth: "1981-09-30",
     verificationDoneBy: "Administrator",
     verificationDate: "2026-07-21",
     verifiedRemark: "Client confirmed PAN and bank details over call.",
@@ -256,9 +259,17 @@ const SEEDED_VERIFICATION: Readonly<Record<string, VerificationDetails>> = {
 /** In-memory saves, keyed by ticket. Cleared on reload — mock only. */
 const savedVerification = new Map<string, VerificationDetails>();
 
+/**
+ * Which tickets have a case open, and under what name. Mirrors the real
+ * one-case-per-ticket rule; a ticket starts without one so the tab's "open a
+ * case" branch is reachable in the mock.
+ */
+const openCases = new Map<string, string>();
+
 /** Reset session state between demos or tests. */
 export function resetMockStore(): void {
   savedVerification.clear();
+  openCases.clear();
 }
 
 function applicationForTicket(ticketId: string): AccountOpeningApplication {
@@ -269,6 +280,54 @@ function applicationForTicket(ticketId: string): AccountOpeningApplication {
     ...fixture,
     age,
     videoVerificationRequired: isVideoVerificationRequired(age),
+  };
+}
+
+function caseNumber(ticketId: string): string {
+  return `AO${String((hash(ticketId) % 9999) + 1).padStart(4, "0")}`;
+}
+
+function caseForTicket(
+  ticketId: string,
+  verification: VerificationDetails
+): AccountOpeningCase | null {
+  const name = openCases.get(ticketId);
+  if (!name) return null;
+
+  const age = computeAge(verification.clientDateOfBirth);
+  const videoRequired = isVideoVerificationRequired(age);
+
+  return {
+    name,
+    workflowState: "New",
+    clientAge: age,
+    verificationType: videoRequired ? "Video" : "Call",
+    videoVerificationRequired: videoRequired,
+    kycSource: "",
+    kycPdf: "",
+  };
+}
+
+function recordForTicket(ticketId: string): AccountOpeningRecord {
+  const application = applicationForTicket(ticketId);
+  const stored = savedVerification.get(ticketId);
+  const verification = normalizeVerification(
+    stored ?? SEEDED_VERIFICATION[application.applicationNo] ?? {
+      panNumber: application.panNumber,
+      clientId: application.clientId,
+      clientName: application.clientName,
+      clientDateOfBirth: application.dateOfBirth,
+    }
+  );
+
+  return {
+    case: caseForTicket(ticketId, verification),
+    application,
+    verification,
+    meta: {
+      source: "mock",
+      lastUpdatedOn: stored ? new Date().toISOString() : null,
+    },
   };
 }
 
@@ -286,23 +345,24 @@ export class MockAccountOpeningService implements AccountOpeningService {
       return null;
     }
 
-    const application = applicationForTicket(ticketId);
-    const stored = savedVerification.get(ticketId);
-    const verification = normalizeVerification(
-      stored ?? SEEDED_VERIFICATION[application.applicationNo] ?? {
-        panNumber: application.panNumber,
-        clientId: application.clientId,
-      }
-    );
+    return recordForTicket(ticketId);
+  }
 
-    return {
-      application,
-      verification,
-      meta: {
-        source: "mock",
-        lastUpdatedOn: stored ? new Date().toISOString() : null,
-      },
-    };
+  async createCase(ticketId: string): Promise<AccountOpeningRecord> {
+    await delay(scenario === "slow" ? SLOW_LATENCY_MS : LATENCY_MS);
+
+    if (scenario === "error") {
+      throw new AccountOpeningError(
+        "NETWORK",
+        "Mock failure: could not open the account opening case"
+      );
+    }
+
+    // Idempotent, like the endpoint it stands in for.
+    if (!openCases.has(ticketId)) {
+      openCases.set(ticketId, caseNumber(ticketId));
+    }
+    return recordForTicket(ticketId);
   }
 
   async saveVerification(

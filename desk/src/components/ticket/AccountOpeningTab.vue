@@ -3,7 +3,10 @@
     <!-- Sub-tab switcher: Details (read-only) / Form (editable) -->
     <div class="flex items-center justify-between gap-3 border-b px-6 py-3">
       <div class="flex items-center gap-2">
-        <TabButtons v-model="activeSubTab" :buttons="subTabs" />
+        <TabButtons v-if="hasCase" v-model="activeSubTab" :buttons="subTabs" />
+        <Tooltip v-if="hasCase" :text="t('Account opening case')">
+          <Badge variant="subtle" theme="blue" size="sm" :label="caseName" />
+        </Tooltip>
         <Tooltip
           v-if="isMock"
           :text="t('Showing dummy data. Set VITE_ACCOUNT_OPENING_SOURCE=api to use the live service.')"
@@ -16,7 +19,9 @@
         </Tooltip>
       </div>
 
-      <div class="flex items-center gap-2">
+      <!-- The case's workflow state and Actions live in the ticket header, not
+           here: two copies of the same control would drift out of sync. -->
+      <div v-if="hasCase" class="flex items-center gap-2">
         <Tooltip :text="refreshTooltip">
           <!-- span keeps the tooltip alive while the button is disabled -->
           <span>
@@ -78,6 +83,32 @@
           {{ error.message }}
         </p>
         <Button class="mt-2" :label="t('Try again')" @click="reload" />
+      </div>
+
+      <!-- No case opened against this ticket yet. The workflow runs on the case,
+           so until one exists there is nothing to record against. -->
+      <div
+        v-else-if="!hasCase"
+        class="flex flex-col items-center justify-center gap-2 py-16 text-center"
+      >
+        <FeatherIcon name="file-plus" class="h-6 w-6 text-gray-400" />
+        <p class="text-base font-medium text-gray-800">
+          {{ t("No account opening case yet") }}
+        </p>
+        <p class="max-w-md text-p-sm text-gray-600">
+          {{
+            t(
+              "Open a case to record the client's details, the signature and call or video verification, and to drive the account opening workflow."
+            )
+          }}
+        </p>
+        <Button
+          class="mt-2"
+          :label="t('Open account opening case')"
+          variant="solid"
+          :loading="creating"
+          @click="onOpenCase"
+        />
       </div>
 
       <!-- Empty: only on Details. The Form tab stays available so the agent can
@@ -176,6 +207,8 @@ const props = defineProps<{
   ticketId: string | number;
 }>();
 
+const emit = defineEmits<{ (e: "updated"): void }>();
+
 const activeSubTab = ref<"details" | "form">("details");
 const subTabs = computed(() => [
   { label: t("Details"), value: "details" },
@@ -184,8 +217,11 @@ const subTabs = computed(() => [
 
 const {
   record,
+  caseName,
+  hasCase,
   loading,
   saving,
+  creating,
   error,
   saveError,
   isEmpty,
@@ -198,6 +234,7 @@ const {
   canEdit,
   videoVerificationRequired,
   reload,
+  openCase,
   save,
   revert,
   setField,
@@ -231,9 +268,22 @@ const errorTitle = computed(() => {
   }
 });
 
+async function onOpenCase(): Promise<void> {
+  if (await openCase()) {
+    toast.success(t("Account opening case opened"));
+    // The header's Actions menu is driven by the case name, which it resolves
+    // independently — it has to be told the case now exists.
+    emit("updated");
+    activeSubTab.value = "form";
+    return;
+  }
+  toast.error(saveError.value?.message || t("Could not open the account opening case"));
+}
+
 async function onSave(): Promise<void> {
   if (await save()) {
     toast.success(t("Verification details saved"));
+    emit("updated");
     return;
   }
 

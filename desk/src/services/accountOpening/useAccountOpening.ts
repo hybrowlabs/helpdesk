@@ -30,6 +30,7 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
   const record = ref<AccountOpeningRecord | null>(null);
   const loading = ref(false);
   const saving = ref(false);
+  const creating = ref(false);
   const error = ref<AccountOpeningError | null>(null);
   const saveError = ref<AccountOpeningError | null>(null);
 
@@ -71,7 +72,26 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
     }
   }
 
-  
+  /** Opens the case this ticket's workflow will run on. Idempotent. */
+  async function openCase(): Promise<boolean> {
+    const id = String(toValue(ticketId) ?? "");
+    if (!id || creating.value) return false;
+
+    creating.value = true;
+    saveError.value = null;
+    try {
+      const result = await service.createCase(id);
+      record.value = result;
+      resetForm(result.verification);
+      return true;
+    } catch (cause) {
+      saveError.value = asError(cause);
+      return false;
+    } finally {
+      creating.value = false;
+    }
+  }
+
   async function save(): Promise<boolean> {
     const id = String(toValue(ticketId) ?? "");
     if (!id || saving.value) return false;
@@ -117,6 +137,8 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
 
     if (fieldname === "verificationDate") {
       form.verificationDate = next.trim() || null;
+    } else if (fieldname === "clientDateOfBirth") {
+      form.clientDateOfBirth = next.trim() || null;
     } else if (fieldname === "callVerificationStatus") {
       // Statuses go through the normaliser so a stray option can never put an
       // invalid enum into the form.
@@ -142,6 +164,11 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
     }
   }
 
+  // The case the FR-10 workflow runs on. Null until an agent opens one, which
+  // is the tab's first action rather than an error.
+  const caseName = computed(() => record.value?.case?.name ?? "");
+  const hasCase = computed(() => Boolean(record.value?.case));
+
   // "No application" — either nothing came back at all, or a record came back
   // with no application resolved. The Form tab still renders in the second
   // case, so the agent can enter the PAN / Client ID that will resolve one.
@@ -156,10 +183,14 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
     record.value?.application ? toDetailRows(record.value.application) : []
   );
 
-  // The compliance flag is decided by the server from the client's age; the
-  // form only reflects it.
-  const videoVerificationRequired = computed(() =>
-    Boolean(record.value?.application?.videoVerificationRequired)
+  // The compliance flag is decided by the server from the client's date of
+  // birth; the form only reflects it. The case is authoritative — it holds the
+  // date of birth the agent entered — with the vendor application as the
+  // fallback for a case that has not recorded one.
+  const videoVerificationRequired = computed(
+    () =>
+      Boolean(record.value?.case?.videoVerificationRequired) ||
+      Boolean(record.value?.application?.videoVerificationRequired)
   );
 
   const fields = computed(() =>
@@ -175,16 +206,20 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
     );
   });
 
-  // Editable as soon as a record exists, application or not — entering the
+  // Editable as soon as a case exists, application or not — entering the
   // identifier is precisely what the agent does when there is no application.
-  const canEdit = computed(() => Boolean(record.value) && !loading.value);
+  // Without a case there is nowhere to store the answer.
+  const canEdit = computed(() => hasCase.value && !loading.value);
 
   watch(() => toValue(ticketId), load, { immediate: true });
 
   return {
     record,
+    caseName,
+    hasCase,
     loading,
     saving,
+    creating,
     error,
     saveError,
     isEmpty,
@@ -197,6 +232,7 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
     canEdit,
     videoVerificationRequired,
     reload: load,
+    openCase,
     save,
     revert,
     setField,

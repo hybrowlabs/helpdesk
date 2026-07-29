@@ -144,6 +144,19 @@ export function getVerificationFields(
       description: t("Used only when no PAN is available."),
     },
     {
+      fieldname: "clientName",
+      label: t("Client Name"),
+      fieldtype: "Text",
+    },
+    {
+      fieldname: "clientDateOfBirth",
+      label: t("Client Date of Birth"),
+      fieldtype: "Date",
+      description: t(
+        "Decides whether video verification is mandatory. Save to apply the rule."
+      ),
+    },
+    {
       fieldname: "verificationDoneBy",
       label: t("Verification Done By"),
       fieldtype: "Link",
@@ -197,6 +210,8 @@ export function emptyVerification(): VerificationDetails {
   return {
     panNumber: "",
     clientId: "",
+    clientName: "",
+    clientDateOfBirth: null,
     verificationDoneBy: "",
     verificationDate: null,
     verifiedRemark: "",
@@ -240,12 +255,15 @@ export function normalizeVerification(
   const signature = String(input.signatureVerificationStatus ?? "");
   const video = String(input.videoVerificationStatus ?? "");
   const date = String(input.verificationDate ?? "").trim();
+  const dateOfBirth = String(input.clientDateOfBirth ?? "").trim();
 
   return {
     // Upper-cased here as well as on the server, so the field reads back the
     // way it will be stored without waiting for a round-trip.
     panNumber: String(input.panNumber ?? "").trim().toUpperCase(),
     clientId: String(input.clientId ?? "").trim(),
+    clientName: String(input.clientName ?? "").trim(),
+    clientDateOfBirth: dateOfBirth || null,
     verificationDoneBy: String(input.verificationDoneBy ?? "").trim(),
     verificationDate: date || null,
     verifiedRemark: String(input.verifiedRemark ?? ""),
@@ -301,9 +319,15 @@ export function validateVerification(
     );
   }
 
-  // Compliance: a 70+ client cannot be signed off on the call alone.
+  // Compliance: a 70+ client cannot be signed off on the call alone. The server
+  // is the authority, but the date of birth the agent has just typed is checked
+  // too — otherwise the rule only appears after a save that will be rejected.
+  const videoRequired =
+    Boolean(options.videoVerificationRequired) ||
+    isVideoVerificationRequired(computeAge(verification.clientDateOfBirth));
+
   if (
-    options.videoVerificationRequired &&
+    videoRequired &&
     verification.callVerificationStatus === "Done" &&
     verification.videoVerificationStatus === "Pending"
   ) {

@@ -10,6 +10,11 @@ export {
 export { useAccountOpening, type UseAccountOpening } from "./useAccountOpening";
 
 export {
+  useAccountOpeningCase,
+  type UseAccountOpeningCase,
+} from "./useAccountOpeningCase";
+
+export {
   useTicketWorkflow,
   type UseTicketWorkflow,
 } from "./useTicketWorkflow";
@@ -31,10 +36,12 @@ export {
 export {
   AccountOpeningError,
   CALL_VERIFICATION_STATUSES,
+  CASE_DOCTYPE,
   SIGNATURE_VERIFICATION_STATUSES,
   VIDEO_VERIFICATION_MIN_AGE,
   VIDEO_VERIFICATION_STATUSES,
   type AccountOpeningApplication,
+  type AccountOpeningCase,
   type AccountOpeningEnvelope,
   type AccountOpeningErrorCode,
   type AccountOpeningIdentifier,

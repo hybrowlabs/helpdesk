@@ -57,9 +57,12 @@ import {
 import { computed, h } from "vue";
 
 const props = defineProps<{
-  /** The record the workflow runs on. An HD Ticket unless `doctype` says otherwise. */
+  /** The record the workflow runs on — a case name, e.g. "AO0001" or "MO0001". */
   ticketId: string | number;
-  /** Omit for HD Ticket (FR-10). FR-14 passes "Client Modification". */
+  /**
+   * The case DocType: "Account Opening" (FR-10) or "Client Modification"
+   * (FR-14). Defaults to HD Ticket server-side, which no flow uses any more.
+   */
   doctype?: string;
 }>();
 
