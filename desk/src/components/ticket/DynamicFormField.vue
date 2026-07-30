@@ -11,6 +11,7 @@
       class="form-control"
       :doctype="field.options"
       :value="stringValue"
+      :disabled="field.readonly"
       :placeholder="`Add ${field.label}`"
       @change="(v) => emitValue(v)"
     />
@@ -21,6 +22,7 @@
       type="select"
       :options="selectOptions"
       :model-value="stringValue"
+      :disabled="field.readonly"
       :placeholder="`Select ${field.label}`"
       @update:model-value="(v) => emitValue(v)"
     />
@@ -30,6 +32,7 @@
       v-else-if="field.fieldtype === 'Checkbox'"
       type="checkbox"
       :model-value="!!modelValue"
+      :disabled="field.readonly"
       @update:model-value="(v) => emitValue(v ? 1 : 0)"
     />
 
@@ -39,6 +42,7 @@
       type="textarea"
       :rows="3"
       :model-value="stringValue"
+      :disabled="field.readonly"
       :placeholder="`Add ${field.label}`"
       @change="(e) => emitValue(e.target.value)"
     />
@@ -48,6 +52,7 @@
       v-else
       :type="inputType"
       :model-value="stringValue"
+      :disabled="field.readonly"
       :placeholder="`Add ${field.label}`"
       @change="(e) => emitValue(e.target.value)"
     />
@@ -72,6 +77,14 @@ interface DynamicField {
   required?: 0 | 1;
   /** Hint shown under the control when there is no validation error. */
   description?: string;
+  /**
+   * Render the control disabled. FR-11 needs this: a closure case is worked by
+   * five departments at once and the server only accepts the block the caller's
+   * role owns, so an enabled input for someone else's block would take a value
+   * and silently discard it. Absent means editable, so FR-10 and FR-14 are
+   * unaffected.
+   */
+  readonly?: boolean;
 }
 
 const props = defineProps<{

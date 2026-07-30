@@ -33,9 +33,10 @@
           Assign
         </button>
         <!-- The desk app is a Vue SPA, so it does not inherit the Frappe desk's
-             own workflow bar — this is its replacement. Both flows run on their
+             own workflow bar — this is its replacement. Every flow runs on its
              own case DocType, so each is pointed at its case rather than at the
-             ticket; the badge is absent until a case has been opened. -->
+             ticket; the badge is absent until a case has been opened. The
+             categories are mutually exclusive, so only one can ever render. -->
         <TicketWorkflowActions
           v-if="isAccountOpeningTicket && accountOpeningCaseName"
           :ticket-id="accountOpeningCaseName"
@@ -46,6 +47,12 @@
           v-else-if="isModificationTicket && modificationCaseName"
           :ticket-id="modificationCaseName"
           doctype="Client Modification"
+          @updated="ticket.reload()"
+        />
+        <TicketWorkflowActions
+          v-else-if="isClosureTicket && closureCaseName"
+          :ticket-id="closureCaseName"
+          doctype="Account Closure"
           @updated="ticket.reload()"
         />
         <Dropdown v-if="!ticketStatusStore.makeAgentStatusReadOnly" :options="dropdownOptions">
@@ -161,6 +168,16 @@
                   () => {
                     ticket.reload();
                     reloadModificationCase();
+                  }
+                "
+              />
+              <AccountClosureTab
+                v-else-if="tab.name === 'account_closure'"
+                :ticket-id="ticketId"
+                @updated="
+                  () => {
+                    ticket.reload();
+                    reloadClosureCase();
                   }
                 "
               />
@@ -360,7 +377,9 @@ import TicketResolutionSection from "@/components/ticket/TicketResolutionSection
 import AccountOpeningTab from "@/components/ticket/AccountOpeningTab.vue";
 import TicketWorkflowActions from "@/components/ticket/TicketWorkflowActions.vue";
 import ClientModificationTab from "@/components/ticket/ClientModificationTab.vue";
+import AccountClosureTab from "@/components/ticket/AccountClosureTab.vue";
 import { useModificationCase } from "@/services/clientModification";
+import { useClosureCase } from "@/services/accountClosure";
 import { useAccountOpeningCase } from "@/services/accountOpening";
 import { setupCustomizations } from "@/composables/formCustomisation";
 import { useView } from "@/composables/useView";
@@ -715,7 +734,16 @@ const isModificationTicket = computed(
     MODIFICATION_CATEGORY.toLowerCase()
 );
 
-// Both flows carry their workflow on a DocType of their own — Frappe allows one
+// FR-11. Same gate again, on the "Account Closure" HD Category.
+const ACCOUNT_CLOSURE_CATEGORY = "Account Closure";
+
+const isClosureTicket = computed(
+  () =>
+    (ticket.data?.custom_category || "").trim().toLowerCase() ===
+    ACCOUNT_CLOSURE_CATEGORY.toLowerCase()
+);
+
+// Every flow carries its workflow on a DocType of its own — Frappe allows one
 // active workflow per DocType — so the header's Actions menu has to be pointed
 // at the case rather than the ticket. Resolved here so it works whichever tab
 // is open, and reloaded when a tab opens a case so the badge appears without a
@@ -731,6 +759,11 @@ const { caseName: modificationCaseName, reload: reloadModificationCase } =
     () => props.ticketId,
     () => isModificationTicket.value
   );
+
+const { caseName: closureCaseName, reload: reloadClosureCase } = useClosureCase(
+  () => props.ticketId,
+  () => isClosureTicket.value
+);
 
 const tabIndex = ref(0);
 const tabs = computed(() => {
@@ -767,6 +800,15 @@ const tabs = computed(() => {
     baseTabs.push({
       name: "client_modification",
       label: "Modification",
+      icon: DetailsIcon,
+    });
+  }
+
+  // FR-11 account closure case, on its own category.
+  if (isClosureTicket.value) {
+    baseTabs.push({
+      name: "account_closure",
+      label: "Closure",
       icon: DetailsIcon,
     });
   }

@@ -224,9 +224,8 @@ export type TicketTab =
   | "details"
   | "resolution"
   | "account_opening"
-  | "client_modification";
-  
-    
+  | "client_modification"
+  | "account_closure";
 
 export interface TabObject {
   name: TicketTab;
