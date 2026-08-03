@@ -1,6 +1,7 @@
 
 import { call } from "frappe-ui";
 
+import { getCall } from "../http";
 import { toAccountOpeningError, unwrap } from "./envelope";
 import { normalizeVerification } from "./presenter";
 import {
@@ -33,7 +34,7 @@ export class HttpAccountOpeningService implements AccountOpeningService {
   async fetch(ticketId: string): Promise<AccountOpeningRecord | null> {
     let envelope: AccountOpeningEnvelope<AccountOpeningRecord>;
     try {
-      envelope = await call(METHODS.fetch, { ticket_id: ticketId });
+      envelope = await getCall(METHODS.fetch, { ticket_id: ticketId });
     } catch (cause) {
       throw toAccountOpeningError(cause);
     }

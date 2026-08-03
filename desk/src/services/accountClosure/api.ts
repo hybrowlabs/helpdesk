@@ -1,13 +1,7 @@
-/**
- * FR-11 Account Closure — HTTP client.
- *
- * The envelope and the error type are shared with the account-opening endpoints,
- * so `unwrap` and `toAccountOpeningError` are reused rather than duplicated.
- * There is no mock adapter: a closure case is entirely Frappe-side data that
- * exists on every site.
- */
+
 import { call } from "frappe-ui";
 
+import { getCall } from "../http";
 import { toAccountOpeningError, unwrap } from "../accountOpening/envelope";
 import type { AccountOpeningEnvelope } from "../accountOpening";
 import { normalizeForm, toPayload } from "./presenter";
@@ -45,7 +39,7 @@ function normalizeRecord(raw: ClosureRecord | null): ClosureRecord | null {
 export async function fetchCase(ticketId: string): Promise<ClosureRecord | null> {
   let envelope: AccountOpeningEnvelope<ClosureRecord>;
   try {
-    envelope = await call(METHODS.get, { ticket_id: ticketId });
+    envelope = await getCall(METHODS.get, { ticket_id: ticketId });
   } catch (cause) {
     throw toAccountOpeningError(cause);
   }
@@ -127,7 +121,7 @@ export async function fetchHoldings(caseName: string): Promise<ClosureRecord> {
 export async function fetchAuditTrail(caseName: string): Promise<ClosureAuditRow[]> {
   let envelope: AccountOpeningEnvelope<ClosureAuditRow[]>;
   try {
-    envelope = await call(METHODS.auditTrail, { case_name: caseName });
+    envelope = await getCall(METHODS.auditTrail, { case_name: caseName });
   } catch (cause) {
     throw toAccountOpeningError(cause);
   }

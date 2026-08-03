@@ -1,6 +1,7 @@
 
 import { call } from "frappe-ui";
 
+import { getCall } from "../http";
 import { toAccountOpeningError, unwrap } from "./envelope";
 import {
   AccountOpeningError,
@@ -59,7 +60,7 @@ export async function fetchWorkflowStatus(
 ): Promise<WorkflowStatus> {
   let envelope: AccountOpeningEnvelope<WorkflowStatus>;
   try {
-    envelope = await call(METHODS.status, { ticket_id: docname, doctype });
+    envelope = await getCall(METHODS.status, { ticket_id: docname, doctype });
   } catch (cause) {
     throw toAccountOpeningError(cause);
   }

@@ -1,13 +1,7 @@
-/**
- * FR-14 Client Modification — HTTP client.
- *
- * The envelope and the error type are shared with the account-opening
- * endpoints, so `unwrap` and `toAccountOpeningError` are reused rather than
- * duplicated. There is no mock adapter: unlike the vendor application, a
- * modification case is entirely Frappe-side data that exists on every site.
- */
+
 import { call } from "frappe-ui";
 
+import { getCall } from "../http";
 import {
   toAccountOpeningError,
   unwrap,
@@ -46,7 +40,7 @@ export async function fetchCase(
 ): Promise<ModificationRecord | null> {
   let envelope: AccountOpeningEnvelope<ModificationRecord>;
   try {
-    envelope = await call(METHODS.get, { ticket_id: ticketId });
+    envelope = await getCall(METHODS.get, { ticket_id: ticketId });
   } catch (cause) {
     throw toAccountOpeningError(cause);
   }
