@@ -55,6 +55,12 @@
           doctype="Account Closure"
           @updated="ticket.reload()"
         />
+        <TicketWorkflowActions
+          v-else-if="isStockTransferTicket && transferCaseName"
+          :ticket-id="transferCaseName"
+          doctype="Stock Transfer"
+          @updated="ticket.reload()"
+        />
         <Dropdown v-if="!ticketStatusStore.makeAgentStatusReadOnly" :options="dropdownOptions">
           <template #default="{ open }">
             <Button :label="ticket.data.status">
@@ -178,6 +184,16 @@
                   () => {
                     ticket.reload();
                     reloadClosureCase();
+                  }
+                "
+              />
+              <StockTransferTab
+                v-else-if="tab.name === 'stock_transfer'"
+                :ticket-id="ticketId"
+                @updated="
+                  () => {
+                    ticket.reload();
+                    reloadTransferCase();
                   }
                 "
               />
@@ -378,8 +394,10 @@ import AccountOpeningTab from "@/components/ticket/AccountOpeningTab.vue";
 import TicketWorkflowActions from "@/components/ticket/TicketWorkflowActions.vue";
 import ClientModificationTab from "@/components/ticket/ClientModificationTab.vue";
 import AccountClosureTab from "@/components/ticket/AccountClosureTab.vue";
+import StockTransferTab from "@/components/ticket/StockTransferTab.vue";
 import { useModificationCase } from "@/services/clientModification";
 import { useClosureCase } from "@/services/accountClosure";
+import { useTransferCase } from "@/services/stockTransfer";
 import { useAccountOpeningCase } from "@/services/accountOpening";
 import { setupCustomizations } from "@/composables/formCustomisation";
 import { useView } from "@/composables/useView";
@@ -743,6 +761,18 @@ const isClosureTicket = computed(
     ACCOUNT_CLOSURE_CATEGORY.toLowerCase()
 );
 
+// Same gate again, on the "Stock Transfer" HD Category. The site also carries
+// "POA Stock Transfer" and "NON-POA Stock Transfer" categories; those are
+// deliberately not claimed here — the transfer type is recorded on the case, so
+// one flow serves both.
+const STOCK_TRANSFER_CATEGORY = "Stock Transfer";
+
+const isStockTransferTicket = computed(
+  () =>
+    (ticket.data?.custom_category || "").trim().toLowerCase() ===
+    STOCK_TRANSFER_CATEGORY.toLowerCase()
+);
+
 // Every flow carries its workflow on a DocType of its own — Frappe allows one
 // active workflow per DocType — so the header's Actions menu has to be pointed
 // at the case rather than the ticket. Resolved here so it works whichever tab
@@ -764,6 +794,12 @@ const { caseName: closureCaseName, reload: reloadClosureCase } = useClosureCase(
   () => props.ticketId,
   () => isClosureTicket.value
 );
+
+const { caseName: transferCaseName, reload: reloadTransferCase } =
+  useTransferCase(
+    () => props.ticketId,
+    () => isStockTransferTicket.value
+  );
 
 const tabIndex = ref(0);
 const tabs = computed(() => {
@@ -809,6 +845,15 @@ const tabs = computed(() => {
     baseTabs.push({
       name: "account_closure",
       label: "Closure",
+      icon: DetailsIcon,
+    });
+  }
+
+  // Stock transfer case, on its own category.
+  if (isStockTransferTicket.value) {
+    baseTabs.push({
+      name: "stock_transfer",
+      label: "Transfer",
       icon: DetailsIcon,
     });
   }
