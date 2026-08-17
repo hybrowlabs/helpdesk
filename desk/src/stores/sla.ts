@@ -50,6 +50,65 @@ const defaultSupportAndResolution = [
   },
 ];
 
+export const ESCALATION_LEVEL_COUNT = 3;
+
+export const escalationTypeOptions = [
+  { label: "Select Type", value: "" },
+  { label: "Ticket Creation", value: "Ticket Creation" },
+  { label: "First Response SLA Breach", value: "First Response SLA Breach" },
+  { label: "Assignee TAT SLA Breach", value: "Assignee TAT SLA Breach" },
+];
+
+export const escalationUnitOptions = [
+  { label: "Minutes", value: "Minutes" },
+  { label: "Hours", value: "Hours" },
+  { label: "Days", value: "Days" },
+];
+
+// The form always shows a fixed set of levels; empty ones are dropped on save.
+export function defaultEscalationLevels() {
+  return Array.from({ length: ESCALATION_LEVEL_COUNT }, (_, index) => ({
+    level: index + 1,
+    assign_to_manager: false,
+    escalation_assignee: "",
+    escalation_point: null,
+    unit: "Hours",
+  }));
+}
+
+// Merge saved rows into the fixed level slots the form renders.
+export function toEscalationLevels(rows) {
+  const levels = defaultEscalationLevels();
+  (rows || []).forEach((row) => {
+    const index = (row.level || 0) - 1;
+    if (index < 0) return;
+    if (index >= levels.length) {
+      levels.push({
+        level: row.level,
+        assign_to_manager: false,
+        escalation_assignee: "",
+        escalation_point: null,
+        unit: "Hours",
+      });
+    }
+    const slot = levels[index] || levels[levels.length - 1];
+    slot.level = row.level;
+    slot.assign_to_manager = Boolean(row.assign_to_manager);
+    slot.escalation_assignee = row.escalation_assignee || "";
+    slot.escalation_point = row.escalation_point ?? null;
+    slot.unit = row.unit || "Hours";
+  });
+  return levels;
+}
+
+export function isEscalationLevelFilled(level) {
+  return (
+    Boolean(level?.escalation_assignee?.trim()) ||
+    Boolean(level?.escalation_point) ||
+    Boolean(level?.assign_to_manager)
+  );
+}
+
 export const slaData = ref({
   name: "",
   service_level: "",
@@ -81,12 +140,10 @@ export const slaData = ref({
   custom_use_assignee_holiday_list: false,
   custom_auto_assign_team: "",
   auto_close_days: 0,
-  // Second level escalation fields
-  custom_second_level_escalation_enabled: false,
-  custom_second_level_escalation_target: "",
-  custom_second_level_escalation_user: "",
-  custom_second_level_escalation_team: "",
-  custom_second_level_escalation_delay_hours: 24,
+  // Escalation
+  custom_enable_escalation: false,
+  custom_escalation_type: "",
+  custom_escalation_levels: defaultEscalationLevels(),
 });
 
 export const resetSlaData = () => {
@@ -121,12 +178,10 @@ export const resetSlaData = () => {
     custom_use_assignee_holiday_list: false,
     custom_auto_assign_team: "",
     auto_close_days: 0,
-    // Second level escalation fields
-    custom_second_level_escalation_enabled: false,
-    custom_second_level_escalation_target: "",
-    custom_second_level_escalation_user: "",
-    custom_second_level_escalation_team: "",
-    custom_second_level_escalation_delay_hours: 24,
+    // Escalation
+    custom_enable_escalation: false,
+    custom_escalation_type: "",
+    custom_escalation_levels: defaultEscalationLevels(),
   };
 };
 

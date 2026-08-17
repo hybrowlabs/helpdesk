@@ -40,7 +40,7 @@
           variant="solid"
           @click="saveSla()"
           :disabled="Boolean(!isDirty && slaActiveScreen.data)"
-          :loading="slaData.loading || slaPolicyList.setValue.loading"
+          :loading="slaData.loading || saveSlaResource.loading"
         />
       </div>
     </div>
@@ -278,76 +278,8 @@
       </div>
     </div>
 
-    <!-- Second Level Escalation Section -->
-    <hr class="my-8" v-if="hasEmployeeAssignment" />
-    <div v-if="hasEmployeeAssignment">
-      <div class="flex flex-col gap-1">
-        <span class="text-lg font-semibold text-ink-gray-8"
-          >Second Level Escalation</span
-        >
-        <span class="text-p-sm text-ink-gray-6">
-          Configure automatic escalation when first level doesn't resolve the ticket
-        </span>
-      </div>
-      <div class="mt-5 space-y-4">
-        <Checkbox
-          label="Enable Second Level Escalation"
-          :model-value="slaData.custom_second_level_escalation_enabled"
-          @update:model-value="(val) => slaData.custom_second_level_escalation_enabled = val"
-          class="text-ink-gray-6 text-base font-medium"
-        />
-
-        <div v-if="slaData.custom_second_level_escalation_enabled" class="space-y-4 p-4 bg-gray-50 rounded-lg">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <FormControl
-              type="select"
-              size="sm"
-              variant="subtle"
-              label="Escalate To"
-              v-model="slaData.custom_second_level_escalation_target"
-              :options="secondLevelTargetOptions"
-              placeholder="Select escalation target"
-            />
-            <FormControl
-              type="number"
-              size="sm"
-              variant="subtle"
-              label="Delay (hours after first escalation)"
-              v-model="slaData.custom_second_level_escalation_delay_hours"
-              placeholder="24"
-            />
-          </div>
-
-          <Link
-            v-if="slaData.custom_second_level_escalation_target === 'Specific User'"
-            :hideMe="true"
-            size="sm"
-            variant="subtle"
-            label="Select User"
-            v-model="slaData.custom_second_level_escalation_user"
-            doctype="HD Agent"
-            :filters="{ is_active: 1 }"
-            show-label-with-id
-            placeholder="Select a user"
-          />
-
-          <FormControl
-            v-if="slaData.custom_second_level_escalation_target === 'Specific Team'"
-            type="select"
-            size="sm"
-            variant="subtle"
-            label="Select Team"
-            v-model="slaData.custom_second_level_escalation_team"
-            :options="teamOptions"
-            placeholder="Select a team"
-          />
-
-          <div class="text-p-sm text-ink-gray-5 italic">
-            After the specified delay, if the ticket is still open, it will be automatically escalated to the configured target.
-          </div>
-        </div>
-      </div>
-    </div>
+    <hr class="my-8" />
+    <SlaEscalation :errors="escalationErrors" />
 
     <hr class="my-8" />
     <div>
@@ -431,10 +363,12 @@
 <script setup lang="ts">
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import {
+  isEscalationLevelFilled,
   resetSlaDataErrors,
   slaActiveScreen,
   slaData,
   slaDataErrors,
+  toEscalationLevels,
   validateSlaData,
 } from "@/stores/sla";
 import { convertToConditions, getFormattedDate } from "@/utils";
@@ -452,10 +386,10 @@ import {
 } from "frappe-ui";
 import { inject, nextTick, onMounted, onUnmounted, ref, watch, computed } from "vue";
 import SlaAssignmentConditions from "./SlaAssignmentConditions.vue";
+import SlaEscalation from "./SlaEscalation.vue";
 import SlaHolidays from "./SlaHolidays.vue";
 import SlaPriorityList from "./SlaPriorityList.vue";
 import SlaStatusList from "./SlaStatusList.vue";
-import Link from "@/components/frappe-ui/Link.vue";
 import { disableSettingModalOutsideClick } from "../settingsModal";
 import { useOnboarding } from "frappe-ui/frappe";
 import { FormControl, createResource } from "frappe-ui";
@@ -492,13 +426,49 @@ const assignmentPriorityOptions = [
   { label: "Round Robin", value: "Round Robin" },
 ];
 
-const secondLevelTargetOptions = [
-  { label: "Manager of Assignee", value: "Manager of Assignee" },
-  { label: "Manager of HRBP", value: "Manager of HRBP" },
-  { label: "Manager of HOD", value: "Manager of HOD" },
-  { label: "Specific User", value: "Specific User" },
-  { label: "Specific Team", value: "Specific Team" },
-];
+const escalationErrors = ref({ escalation_type: "", escalation_levels: "" });
+
+// Only levels the user actually filled in are stored.
+const filledEscalationLevels = () =>
+  (slaData.value.custom_escalation_levels || []).filter(isEscalationLevelFilled);
+
+const validateEscalation = () => {
+  escalationErrors.value = { escalation_type: "", escalation_levels: "" };
+  if (!slaData.value.custom_enable_escalation) return true;
+
+  if (!slaData.value.custom_escalation_type) {
+    escalationErrors.value.escalation_type = "Escalation type is required";
+  }
+
+  const levels = filledEscalationLevels();
+  if (!levels.length) {
+    escalationErrors.value.escalation_levels =
+      "Add at least one escalation level, or turn escalation off";
+  }
+
+  const incomplete = levels.filter(
+    (level) => !level.escalation_assignee?.trim() || !level.escalation_point
+  );
+  if (incomplete.length) {
+    escalationErrors.value.escalation_levels = `Level ${incomplete
+      .map((level) => level.level)
+      .join(", ")}: assignee and escalation point are both required`;
+  } else {
+    // Each level has to fire after the one before it.
+    const inSeconds = { Minutes: 60, Hours: 3600, Days: 86400 };
+    const sorted = [...levels].sort((a, b) => a.level - b.level);
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1].escalation_point * inSeconds[sorted[i - 1].unit || "Hours"];
+      const curr = sorted[i].escalation_point * inSeconds[sorted[i].unit || "Hours"];
+      if (curr <= prev) {
+        escalationErrors.value.escalation_levels = `Escalation point of level ${sorted[i].level} must be later than level ${sorted[i - 1].level}`;
+        break;
+      }
+    }
+  }
+
+  return !escalationErrors.value.escalation_type && !escalationErrors.value.escalation_levels;
+};
 
 const hasEmployeeAssignment = computed(() => {
   return (
@@ -554,12 +524,10 @@ const getSlaData = createResource({
       custom_fallback_team: data.custom_fallback_team || "",
       custom_use_assignee_holiday_list: data.custom_use_assignee_holiday_list || false,
       custom_auto_assign_team: data.custom_auto_assign_team || "",
-      // Second level escalation fields
-      custom_second_level_escalation_enabled: data.custom_second_level_escalation_enabled || false,
-      custom_second_level_escalation_target: data.custom_second_level_escalation_target || "",
-      custom_second_level_escalation_user: data.custom_second_level_escalation_user || "",
-      custom_second_level_escalation_team: data.custom_second_level_escalation_team || "",
-      custom_second_level_escalation_delay_hours: data.custom_second_level_escalation_delay_hours || 24,
+      // Escalation
+      custom_enable_escalation: Boolean(data.custom_enable_escalation),
+      custom_escalation_type: data.custom_escalation_type || "",
+      custom_escalation_levels: toEscalationLevels(data.custom_escalation_levels),
       auto_close_days: data.auto_close_days,
     };
     slaData.value = newData;
@@ -633,8 +601,9 @@ const saveSla = async () => {
   await nextTick();
 
   const validationErrors = validateSlaData(undefined, !useNewUI.value);
+  const escalationValid = validateEscalation();
 
-  if (Object.values(validationErrors).some((error) => error)) {
+  if (Object.values(validationErrors).some((error) => error) || !escalationValid) {
     toast.error(
       "Invalid fields, check if all are filled in and values are correct."
     );
@@ -677,23 +646,37 @@ const proceedWithSave = () => {
   }
 };
 
+// Build the payload the SLA doctype expects: statuses split into their two
+// child tables, conditions serialised, and only the filled escalation levels.
+const getSlaPayload = () => {
+  const { loading, statuses, ...rest } = slaData.value;
+  return {
+    ...rest,
+    sla_fulfilled_on: statuses.filter(
+      (status) => status.sla_behavior === "Fulfilled"
+    ),
+    pause_sla_on: statuses.filter((status) => status.sla_behavior === "Paused"),
+    custom_escalation_levels: slaData.value.custom_enable_escalation
+      ? filledEscalationLevels()
+      : [],
+  };
+};
+
+const saveSlaResource = createResource({
+  url: "helpdesk.api.sla.save_sla",
+});
+
 const createSla = () => {
-  const fulfilledOn = slaData.value.statuses.filter(
-    (status) => status.sla_behavior === "Fulfilled"
-  );
-  const pauseOn = slaData.value.statuses.filter(
-    (status) => status.sla_behavior === "Paused"
-  );
-  slaPolicyList.insert.submit(
+  saveSlaResource.submit(
     {
-      ...slaData.value,
-      sla_fulfilled_on: fulfilledOn,
-      pause_sla_on: pauseOn,
-      condition: convertToConditions({
-        conditions: slaData.value.condition_json,
-        fieldPrefix: "doc",
-      }),
-      condition_json: JSON.stringify(slaData.value.condition_json),
+      data: {
+        ...getSlaPayload(),
+        condition: convertToConditions({
+          conditions: slaData.value.condition_json,
+          fieldPrefix: "doc",
+        }),
+        condition_json: JSON.stringify(slaData.value.condition_json),
+      },
     },
     {
       onSuccess(data) {
@@ -703,41 +686,41 @@ const createSla = () => {
         getSlaData.submit({
           docname: data.name,
         });
+        slaPolicyList.reload();
         updateOnboardingStep("setup_sla", true);
+      },
+      onError(error) {
+        toast.error(error?.messages?.[0] || "Could not create SLA policy");
       },
     }
   );
 };
 
 const updateSla = () => {
-  const fulfilledOn = slaData.value.statuses.filter(
-    (status) => status.sla_behavior === "Fulfilled"
-  );
-  const pauseOn = slaData.value.statuses.filter(
-    (status) => status.sla_behavior === "Paused"
-  );
-
-  slaPolicyList.setValue.submit(
+  saveSlaResource.submit(
     {
-      ...slaData.value,
-      name: slaActiveScreen.value.data.name,
-      sla_fulfilled_on: fulfilledOn,
-      pause_sla_on: pauseOn,
-      condition: useNewUI.value
-        ? convertToConditions({
-            conditions: slaData.value.condition_json,
-            fieldPrefix: "doc",
-          })
-        : slaData.value.condition,
-      condition_json: useNewUI.value
-        ? JSON.stringify(slaData.value.condition_json)
-        : null,
+      docname: slaActiveScreen.value.data.name,
+      data: {
+        ...getSlaPayload(),
+        condition: useNewUI.value
+          ? convertToConditions({
+              conditions: slaData.value.condition_json,
+              fieldPrefix: "doc",
+            })
+          : slaData.value.condition,
+        condition_json: useNewUI.value
+          ? JSON.stringify(slaData.value.condition_json)
+          : null,
+      },
     },
     {
       onSuccess() {
         getSlaData.submit();
         toast.success("SLA policy updated");
         slaPolicyList.reload();
+      },
+      onError(error) {
+        toast.error(error?.messages?.[0] || "Could not update SLA policy");
       },
     }
   );

@@ -977,129 +977,23 @@ class HDTicket(Document):
                 pass
 
     def apply_escalation_rule(self):
+        """Reroute the ticket per HD Escalation Rule.
+
+        This is routing only: the ``escalation_level`` counter belongs to the
+        SLA driven escalation in ``helpdesk.escalation``.
+        """
         if not self.status == "Open" or self.is_new():
             return
         escalation_rule = self.get_escalation_rule()
         if not escalation_rule:
             return
 
-        # Apply first level escalation
-        self._apply_first_level_escalation(escalation_rule)
-
-    def _apply_first_level_escalation(self, escalation_rule):
-        """Apply first level escalation based on escalation rule"""
         self.agent_group = escalation_rule.to_team or self.agent_group
         self.priority = escalation_rule.to_priority or self.priority
         self.ticket_type = escalation_rule.to_ticket_type or self.ticket_type
 
         if escalation_rule.to_agent:
             self.assign_agent(escalation_rule.to_agent)
-
-            # Track first escalation only if not already tracked
-            escalation_level = getattr(self, 'escalation_level', 0) or 0
-            if escalation_level == 0:
-                self.escalation_level = 1
-                self.first_escalation_on = frappe.utils.now()
-                self.first_escalated_to = escalation_rule.to_agent
-
-    def apply_second_level_escalation(self):
-        """Apply second level escalation based on SLA configuration"""
-        escalation_level = getattr(self, 'escalation_level', 0) or 0
-        if escalation_level != 1:
-            return False
-
-        if not self.sla:
-            return False
-
-        sla = frappe.get_doc("HD Service Level Agreement", self.sla)
-
-        # Check if second level escalation is enabled
-        if not getattr(sla, 'custom_second_level_escalation_enabled', False):
-            return False
-
-        # Get second level target
-        target_user = self._get_second_level_target(sla)
-        if target_user:
-            self.assign_agent(target_user)
-            self.escalation_level = 2
-            self.second_escalation_on = frappe.utils.now()
-            self.second_escalated_to = target_user
-            self.save(ignore_permissions=True)
-
-            # Log the escalation activity
-            from helpdesk.helpdesk.doctype.hd_ticket_activity.hd_ticket_activity import (
-                log_ticket_activity,
-            )
-            log_ticket_activity(
-                self.name,
-                f"second level escalation to {target_user}"
-            )
-            return True
-        return False
-
-    def _get_second_level_target(self, sla):
-        """Resolve second level escalation target based on SLA configuration"""
-        target = getattr(sla, 'custom_second_level_escalation_target', None)
-
-        if not target:
-            return None
-
-        if target == "Specific User":
-            return getattr(sla, 'custom_second_level_escalation_user', None)
-
-        elif target == "Specific Team":
-            team = getattr(sla, 'custom_second_level_escalation_team', None)
-            if team:
-                return self._get_first_agent_from_team(team)
-
-        elif target == "Manager of Assignee":
-            current_assignee = self.get_assigned_agent()
-            if current_assignee:
-                return self._get_manager_of_user(current_assignee)
-
-        elif target == "Manager of HRBP":
-            # Get HRBP of the raiser, then get HRBP's manager
-            raiser_employee = frappe.db.get_value("Employee", {"user_id": self.raised_by}, "name")
-            if raiser_employee:
-                hrbp = frappe.db.get_value("Employee", raiser_employee, "custom_hrbp")
-                if hrbp:
-                    hrbp_user = frappe.db.get_value("Employee", hrbp, "user_id")
-                    if hrbp_user:
-                        return self._get_manager_of_user(hrbp_user)
-
-        elif target == "Manager of HOD":
-            # Get HOD from raiser's department, then get HOD's manager
-            raiser_employee = frappe.db.get_value("Employee", {"user_id": self.raised_by}, "name")
-            if raiser_employee:
-                department = frappe.db.get_value("Employee", raiser_employee, "department")
-                if department:
-                    hod = frappe.db.get_value("Department", department, "custom_hod")
-                    if hod:
-                        hod_user = frappe.db.get_value("Employee", hod, "user_id")
-                        if hod_user:
-                            return self._get_manager_of_user(hod_user)
-
-        return None
-
-    def _get_manager_of_user(self, user_id):
-        """Get the manager (reports_to) of a user"""
-        employee = frappe.db.get_value("Employee", {"user_id": user_id}, ["name", "reports_to"], as_dict=True)
-        if employee and employee.reports_to:
-            manager_user = frappe.db.get_value("Employee", employee.reports_to, "user_id")
-            return manager_user
-        return None
-
-    def _get_first_agent_from_team(self, team_name):
-        """Get the first available agent from a team"""
-        team_members = frappe.get_all(
-            "HD Team Member",
-            filters={"parent": team_name},
-            fields=["user"],
-            limit=1
-        )
-        if team_members:
-            return team_members[0].user
-        return None
 
     def set_sla(self):
         """
@@ -1575,52 +1469,3 @@ def close_tickets_by_name(ticket_names):
         doc.flags.ignore_validate = True
         doc.save(ignore_permissions=True)
         frappe.db.commit()  # nosemgrep
-
-
-def check_second_level_escalation():
-    """
-    Scheduled job to check and apply second level escalation for eligible tickets.
-    Runs hourly to check if tickets that have been escalated to first level
-    are past their second level escalation delay threshold.
-    """
-    # Get all tickets that are at escalation level 1 and still open
-    tickets = frappe.get_all(
-        "HD Ticket",
-        filters={
-            "status": "Open",
-            "escalation_level": 1,
-            "first_escalation_on": ["is", "set"],
-            "sla": ["is", "set"]
-        },
-        fields=["name", "sla", "first_escalation_on"]
-    )
-
-    for ticket_data in tickets:
-        try:
-            # Get SLA configuration
-            sla = frappe.get_doc("HD Service Level Agreement", ticket_data.sla)
-
-            # Check if second level escalation is enabled
-            if not getattr(sla, 'custom_second_level_escalation_enabled', False):
-                continue
-
-            # Get delay hours (default to 24 if not set)
-            delay_hours = getattr(sla, 'custom_second_level_escalation_delay_hours', 24) or 24
-
-            # Calculate if enough time has passed since first escalation
-            escalation_time = frappe.utils.get_datetime(ticket_data.first_escalation_on)
-            cutoff_time = frappe.utils.add_to_date(escalation_time, hours=delay_hours)
-
-            if frappe.utils.now_datetime() >= cutoff_time:
-                # Apply second level escalation
-                ticket = frappe.get_doc("HD Ticket", ticket_data.name)
-                escalated = ticket.apply_second_level_escalation()
-                if escalated:
-                    frappe.db.commit()  # nosemgrep
-
-        except Exception as e:
-            # Log error but continue with other tickets
-            frappe.log_error(
-                f"Error applying second level escalation to ticket {ticket_data.name}: {str(e)}",
-                "Second Level Escalation Error"
-            )

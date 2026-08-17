@@ -1,0 +1,81 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-16 10:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "level",
+  "assign_to_manager",
+  "escalation_assignee",
+  "column_break_esc",
+  "escalation_point",
+  "unit"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "description": "Escalation level, 1 being the first to fire",
+   "fieldname": "level",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Level",
+   "reqd": 1
+  },
+  {
+   "columns": 1,
+   "default": "0",
+   "description": "Escalate to the manager of whoever currently holds the ticket. Falls back to the Escalation Assignee when there is no manager or the manager is on leave.",
+   "fieldname": "assign_to_manager",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Assign to Manager"
+  },
+  {
+   "columns": 3,
+   "description": "Comma separated agent emails. Used directly, or as the fallback when Assign to Manager is on.",
+   "fieldname": "escalation_assignee",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "label": "Escalation Assignee",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_esc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 2,
+   "description": "Time after the escalation trigger at which this level fires",
+   "fieldname": "escalation_point",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Escalation Point",
+   "non_negative": 1,
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "default": "Hours",
+   "fieldname": "unit",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Unit",
+   "options": "Minutes\nHours\nDays",
+   "reqd": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-16 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Helpdesk",
+ "name": "HD SLA Escalation Level",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "creation",
+ "sort_order": "ASC",
+ "states": []
+}
