@@ -50,14 +50,31 @@ const defaultSupportAndResolution = [
   },
 ];
 
-export const ESCALATION_LEVEL_COUNT = 3;
-
-export const escalationTypeOptions = [
-  { label: "Select Type", value: "" },
-  { label: "Ticket Creation", value: "Ticket Creation" },
-  { label: "First Response SLA Breach", value: "First Response SLA Breach" },
-  { label: "Assignee TAT SLA Breach", value: "Assignee TAT SLA Breach" },
+// Two fixed levels, each measured from its own SLA target.
+export const escalationLevelDefs = [
+  {
+    level: 1,
+    name: "FAT Escalation",
+    hint: "Fires when the first response target is missed, by the delay set below.",
+  },
+  {
+    level: 2,
+    name: "TAT Escalation",
+    hint: "Fires when the resolution (turnaround) target is missed, by the delay set below.",
+  },
 ];
+
+export const ESCALATION_LEVEL_COUNT = escalationLevelDefs.length;
+
+export function escalationLevelName(level) {
+  return (
+    escalationLevelDefs.find((def) => def.level === level)?.name || `Level ${level}`
+  );
+}
+
+export function escalationLevelHint(level) {
+  return escalationLevelDefs.find((def) => def.level === level)?.hint || "";
+}
 
 export const escalationUnitOptions = [
   { label: "Minutes", value: "Minutes" },
@@ -82,16 +99,9 @@ export function toEscalationLevels(rows) {
   (rows || []).forEach((row) => {
     const index = (row.level || 0) - 1;
     if (index < 0) return;
-    if (index >= levels.length) {
-      levels.push({
-        level: row.level,
-        assign_to_manager: false,
-        escalation_assignee: "",
-        escalation_point: null,
-        unit: "Hours",
-      });
-    }
-    const slot = levels[index] || levels[levels.length - 1];
+    // Levels are fixed; ignore any stale row beyond them.
+    if (index >= levels.length) return;
+    const slot = levels[index];
     slot.level = row.level;
     slot.assign_to_manager = Boolean(row.assign_to_manager);
     slot.escalation_assignee = row.escalation_assignee || "";
@@ -142,7 +152,6 @@ export const slaData = ref({
   auto_close_days: 0,
   // Escalation
   custom_enable_escalation: false,
-  custom_escalation_type: "",
   custom_escalation_levels: defaultEscalationLevels(),
 });
 
@@ -180,7 +189,6 @@ export const resetSlaData = () => {
     auto_close_days: 0,
     // Escalation
     custom_enable_escalation: false,
-    custom_escalation_type: "",
     custom_escalation_levels: defaultEscalationLevels(),
   };
 };

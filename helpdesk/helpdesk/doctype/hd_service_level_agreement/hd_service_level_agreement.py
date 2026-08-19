@@ -51,7 +51,7 @@ class HDServiceLevelAgreement(Document):
 
     def validate_escalation(self):
         """Normalise and sanity check the escalation levels."""
-        from helpdesk.escalation import ESCALATION_TYPES
+        from helpdesk.escalation import ESCALATION_LEVEL_NAMES
         from helpdesk.helpdesk.doctype.hd_sla_escalation_level.hd_sla_escalation_level import (
             parse_assignees,
         )
@@ -61,9 +61,6 @@ class HDServiceLevelAgreement(Document):
         if not self.get("custom_enable_escalation"):
             # Keep the rows around so re-enabling escalation restores the config.
             return
-
-        if self.get("custom_escalation_type") not in ESCALATION_TYPES:
-            frappe.throw(_("Select an Escalation Type to enable escalation."))
 
         configured = []
         for level in levels:
@@ -86,6 +83,17 @@ class HDServiceLevelAgreement(Document):
                     _("Set a positive Escalation Point for level {0}.").format(level.level)
                 )
 
+            if level.level not in ESCALATION_LEVEL_NAMES:
+                frappe.throw(
+                    _("Escalation level {0} is not valid. Levels are {1}.").format(
+                        level.level,
+                        ", ".join(
+                            f"{no} ({name})"
+                            for no, name in ESCALATION_LEVEL_NAMES.items()
+                        ),
+                    )
+                )
+
             for user in assignees:
                 if not frappe.db.exists("User", user):
                     frappe.throw(
@@ -100,17 +108,6 @@ class HDServiceLevelAgreement(Document):
         seen_levels = [level.level for level in configured]
         if len(seen_levels) != len(set(seen_levels)):
             frappe.throw(_("Escalation levels must be unique."))
-
-        # A later level must fire after the one before it, otherwise the
-        # scheduler would hand the ticket to everyone at once.
-        ordered = sorted(configured, key=lambda level: level.level or 0)
-        for previous, current in zip(ordered, ordered[1:]):
-            if get_escalation_seconds(current) <= get_escalation_seconds(previous):
-                frappe.throw(
-                    _(
-                        "Escalation point of level {0} must be later than level {1}."
-                    ).format(current.level, previous.level)
-                )
 
     def validate_priorities(self):
         self.validate_priority_defaults()
@@ -606,15 +603,6 @@ class HDServiceLevelAgreement(Document):
                     "Cannot delete the default SLA. At least one SLA must be marked as default."
                 )
             )
-
-
-def get_escalation_seconds(level) -> int:
-    """Return an escalation level's offset in seconds, unit applied."""
-    from helpdesk.helpdesk.doctype.hd_sla_escalation_level.hd_sla_escalation_level import (
-        UNIT_SECONDS,
-    )
-
-    return (level.escalation_point or 0) * UNIT_SECONDS.get(level.unit or "Hours", 3600)
 
 
 def get_repeated(values):

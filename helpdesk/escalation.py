@@ -1,9 +1,16 @@
 """SLA driven ticket escalation.
 
-An SLA policy can enable escalation, pick a trigger (``Escalation Type``) and
-configure any number of levels. Each level names the agents to assign to and an
-``Escalation Point`` (a duration measured from the trigger). A scheduled job
-walks open tickets and fires the next due level.
+An SLA policy can enable escalation and configure two fixed levels, each with
+its own SLA target as the trigger:
+
+  * Level 1, **FAT Escalation** -- measured from the first response due time.
+  * Level 2, **TAT Escalation** -- measured from the resolution (turnaround)
+    due time.
+
+A level names the agents to assign to and an ``Escalation Point``, the delay
+after that target is missed. A scheduled job walks open tickets and fires the
+next due level. The two clocks are independent: if the ticket was answered in
+time, level 1 can never fire, but level 2 still can.
 """
 
 import json
@@ -21,11 +28,21 @@ from helpdesk.helpdesk.doctype.hd_ticket_activity.hd_ticket_activity import (
 )
 from helpdesk.utils import publish_event
 
-ESCALATION_TYPES = (
-    "Ticket Creation",
-    "First Response SLA Breach",
-    "Assignee TAT SLA Breach",
+# The two levels are fixed: a name and the SLA target their clock runs from.
+ESCALATION_LEVELS = (
+    {"level": 1, "name": "FAT Escalation", "trigger": "first_response"},
+    {"level": 2, "name": "TAT Escalation", "trigger": "resolution"},
 )
+
+ESCALATION_LEVEL_NAMES = {row["level"]: row["name"] for row in ESCALATION_LEVELS}
+
+
+def get_level_definition(level_no):
+    """Return the fixed definition for an escalation level number."""
+    for row in ESCALATION_LEVELS:
+        if row["level"] == level_no:
+            return row
+    return None
 
 # Custom fields backing the escalation config. Created on install and kept in
 # sync by ``helpdesk.patches.rebuild_escalation_fields``.
@@ -46,22 +63,12 @@ ESCALATION_CUSTOM_FIELDS = {
             "insert_after": "custom_escalation_section",
         },
         {
-            "fieldname": "custom_escalation_type",
-            "fieldtype": "Select",
-            "label": "Escalation Type",
-            "description": "The event the escalation clock is measured from",
-            "options": "\n" + "\n".join(ESCALATION_TYPES),
-            "depends_on": "eval: doc.custom_enable_escalation",
-            "mandatory_depends_on": "eval: doc.custom_enable_escalation",
-            "insert_after": "custom_enable_escalation",
-        },
-        {
             "fieldname": "custom_escalation_levels",
             "fieldtype": "Table",
             "label": "Escalation Levels",
             "options": "HD SLA Escalation Level",
             "depends_on": "eval: doc.custom_enable_escalation",
-            "insert_after": "custom_escalation_type",
+            "insert_after": "custom_enable_escalation",
         },
     ],
     "HD Ticket": [
@@ -94,6 +101,7 @@ ESCALATION_CUSTOM_FIELDS = {
 # Fields from the old two-level escalation, dropped by the rebuild patch.
 LEGACY_ESCALATION_FIELDS = {
     "HD Service Level Agreement": [
+        "custom_escalation_type",
         "custom_second_level_escalation_section",
         "custom_second_level_escalation_enabled",
         "custom_second_level_escalation_target",
@@ -125,25 +133,24 @@ TICKET_FIELDS = [
 ]
 
 
-def get_trigger_time(ticket, escalation_type: str):
-    """Return the datetime the escalation clock starts from.
+def get_trigger_time(ticket, level_no: int):
+    """Return the datetime this level's escalation clock starts from.
 
-    ``None`` means this ticket can never escalate under the configured trigger,
-    either because the milestone was already met or because the SLA has not set
-    the target yet.
+    ``None`` means the level can never fire on this ticket, either because its
+    milestone was already met or because the SLA has not set that target yet.
     """
-    if escalation_type == "Ticket Creation":
-        start = ticket.get("service_level_agreement_creation") or ticket.get("creation")
-        return get_datetime(start) if start else None
+    definition = get_level_definition(level_no)
+    if not definition:
+        return None
 
-    if escalation_type == "First Response SLA Breach":
-        # The agent replied in time, there is nothing left to escalate.
+    if definition["trigger"] == "first_response":
+        # The agent replied in time, so there is no FAT breach to escalate.
         if ticket.get("first_responded_on"):
             return None
         return get_datetime(ticket.response_by) if ticket.get("response_by") else None
 
-    if escalation_type == "Assignee TAT SLA Breach":
-        # Ticket was resolved, the turnaround target no longer applies.
+    if definition["trigger"] == "resolution":
+        # Ticket was resolved, so the turnaround target no longer applies.
         if ticket.get("resolution_date"):
             return None
         return get_datetime(ticket.resolution_by) if ticket.get("resolution_by") else None
@@ -268,8 +275,9 @@ def resolve_assignees(ticket, level) -> tuple[list[str], str]:
     return fallback, "escalation assignee (manager unavailable)"
 
 
-def escalate(ticket_name: str, sla, level, escalation_type: str) -> bool:
+def escalate(ticket_name: str, sla, level) -> bool:
     """Assign ``level``'s agents to the ticket and record the escalation."""
+    level_name = ESCALATION_LEVEL_NAMES.get(level.level, f"Level {level.level}")
     ticket = frappe.get_doc("HD Ticket", ticket_name)
     assignees, via = resolve_assignees(ticket, level)
 
@@ -297,7 +305,7 @@ def escalate(ticket_name: str, sla, level, escalation_type: str) -> bool:
         "custom_escalation_log",
         {
             "level": level.level,
-            "escalation_type": escalation_type,
+            "escalation_type": level_name,
             "escalated_on": now_datetime(),
             "escalated_to": ", ".join(assignees),
         },
@@ -314,7 +322,7 @@ def escalate(ticket_name: str, sla, level, escalation_type: str) -> bool:
 
     log_ticket_activity(
         ticket.name,
-        f"escalated to level {level.level} ({escalation_type}) via {via}:"
+        f"escalated to level {level.level} ({level_name}) via {via}:"
         f" {', '.join(assignees)}",
     )
     publish_event("helpdesk:ticket-assignee-update", {"name": ticket.name})
@@ -337,12 +345,29 @@ def run_sla_escalations():
             frappe.log_error(frappe.get_traceback(), f"SLA Escalation failed for {sla_name}")
 
 
+def get_due_level(ticket, levels, now):
+    """Return the lowest not-yet-fired level whose own target is overdue.
+
+    Each level runs off a different SLA target, so a level that can never fire
+    -- FAT once the ticket has been answered, say -- must not block the levels
+    after it.
+    """
+    current_level = ticket.get("escalation_level") or 0
+
+    for level in levels:
+        if (level.level or 0) <= current_level:
+            continue
+        trigger_time = get_trigger_time(ticket, level.level)
+        if not trigger_time:
+            continue
+        if now >= get_level_due_time(trigger_time, level):
+            return level
+
+    return None
+
+
 def process_sla(sla_name: str):
     sla = frappe.get_doc("HD Service Level Agreement", sla_name)
-    escalation_type = sla.get("custom_escalation_type")
-    if escalation_type not in ESCALATION_TYPES:
-        return
-
     levels = get_sorted_levels(sla)
     if not levels:
         return
@@ -365,22 +390,12 @@ def process_sla(sla_name: str):
 
     now = now_datetime()
     for ticket in tickets:
-        trigger_time = get_trigger_time(ticket, escalation_type)
-        if not trigger_time:
-            continue
-
-        current_level = ticket.escalation_level or 0
-        next_level = next(
-            (level for level in levels if (level.level or 0) > current_level), None
-        )
-        if not next_level:
-            continue
-
-        if now < get_level_due_time(trigger_time, next_level):
+        due_level = get_due_level(ticket, levels, now)
+        if not due_level:
             continue
 
         try:
-            if escalate(ticket.name, sla, next_level, escalation_type):
+            if escalate(ticket.name, sla, due_level):
                 frappe.db.commit()  # nosemgrep
         except Exception:
             frappe.db.rollback()

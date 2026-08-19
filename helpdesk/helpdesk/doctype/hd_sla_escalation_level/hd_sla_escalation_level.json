@@ -16,7 +16,7 @@
  "fields": [
   {
    "columns": 1,
-   "description": "Escalation level, 1 being the first to fire",
+   "description": "1 = FAT Escalation (first response target), 2 = TAT Escalation (resolution target)",
    "fieldname": "level",
    "fieldtype": "Int",
    "in_list_view": 1,
@@ -47,7 +47,7 @@
   },
   {
    "columns": 2,
-   "description": "Time after the escalation trigger at which this level fires",
+   "description": "Delay after this level's SLA target is missed",
    "fieldname": "escalation_point",
    "fieldtype": "Int",
    "in_list_view": 1,

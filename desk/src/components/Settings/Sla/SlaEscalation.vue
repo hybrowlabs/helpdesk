@@ -15,28 +15,18 @@
       />
 
       <template v-if="slaData.custom_enable_escalation">
-        <div class="md:w-1/2">
-          <FormControl
-            type="select"
-            size="sm"
-            variant="subtle"
-            label="Escalation Type"
-            v-model="slaData.custom_escalation_type"
-            :options="escalationTypeOptions"
-          />
-          <div class="text-p-sm text-ink-gray-5 mt-1.5 italic">
-            {{ escalationTypeHint }}
-          </div>
-          <ErrorMessage :message="errors.escalation_type" class="mt-2" />
-        </div>
-
         <div
           v-for="(level, index) in slaData.custom_escalation_levels"
           :key="level.level"
           class="space-y-4"
         >
-          <div class="text-base font-medium text-ink-gray-7">
-            Level {{ level.level }}
+          <div class="flex flex-col gap-0.5">
+            <div class="text-base font-medium text-ink-gray-7">
+              {{ escalationLevelName(level.level) }}
+            </div>
+            <div class="text-p-sm text-ink-gray-5">
+              {{ escalationLevelHint(level.level) }}
+            </div>
           </div>
 
           <Checkbox
@@ -104,7 +94,8 @@
 
 <script setup lang="ts">
 import {
-  escalationTypeOptions,
+  escalationLevelHint,
+  escalationLevelName,
   escalationUnitOptions,
   isEscalationLevelFilled,
   slaData,
@@ -114,24 +105,10 @@ import { computed } from "vue";
 import SlaEscalationAssignee from "./SlaEscalationAssignee.vue";
 
 const props = defineProps<{
-  errors: { escalation_type?: string; escalation_levels?: string };
+  errors: { escalation_levels?: string };
 }>();
 
 const errors = computed(() => props.errors || {});
-
-const hints = {
-  "Ticket Creation": "Levels are counted from the moment the ticket is raised.",
-  "First Response SLA Breach":
-    "Levels are counted from the first response due time, and only fire while the ticket is unanswered.",
-  "Assignee TAT SLA Breach":
-    "Levels are counted from the resolution due time, and only fire while the ticket is unresolved.",
-};
-
-const escalationTypeHint = computed(
-  () =>
-    hints[slaData.value.custom_escalation_type] ||
-    "Pick the event the escalation clock starts from."
-);
 
 const clearLevel = (index: number) => {
   const level = slaData.value.custom_escalation_levels[index];

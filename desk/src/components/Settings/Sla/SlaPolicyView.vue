@@ -181,6 +181,28 @@
     <div>
       <div class="flex flex-col gap-1">
         <span class="text-lg font-semibold text-ink-gray-8"
+          >Team Assignment</span
+        >
+        <span class="text-p-sm text-ink-gray-6">
+          Configure automatic team assignment for tickets
+        </span>
+      </div>
+      <div class="mt-5">
+        <FormControl
+          type="select"
+          size="sm"
+          variant="subtle"
+          label="Auto Assign Team"
+          v-model="slaData.custom_auto_assign_team"
+          :options="teamOptions"
+          placeholder="Select a team"
+        />
+      </div>
+    </div>
+    <hr class="my-8" />
+    <div>
+      <div class="flex flex-col gap-1">
+        <span class="text-lg font-semibold text-ink-gray-8"
           >Employee Hierarchy Assignment</span
         >
         <span class="text-p-sm text-ink-gray-6">
@@ -279,31 +301,6 @@
     </div>
 
     <hr class="my-8" />
-    <SlaEscalation :errors="escalationErrors" />
-
-    <hr class="my-8" />
-    <div>
-      <div class="flex flex-col gap-1">
-        <span class="text-lg font-semibold text-ink-gray-8"
-          >Team Assignment</span
-        >
-        <span class="text-p-sm text-ink-gray-6">
-          Configure automatic team assignment for tickets
-        </span>
-      </div>
-      <div class="mt-5">
-        <FormControl
-          type="select"
-          size="sm"
-          variant="subtle"
-          label="Auto Assign Team"
-          v-model="slaData.custom_auto_assign_team"
-          :options="teamOptions"
-          placeholder="Select a team"
-        />
-      </div>
-    </div>
-    <hr class="my-8" />
     <div>
       <div class="flex flex-col gap-1">
         <span class="text-lg font-semibold text-ink-gray-8"
@@ -334,6 +331,9 @@
       </div>
     </div>
     <hr class="my-8" />
+    <SlaEscalation :errors="escalationErrors" />
+
+    <hr class="my-8" />
     <div>
       <div class="flex flex-col gap-1">
         <span class="text-lg font-semibold text-ink-gray-8"
@@ -363,6 +363,7 @@
 <script setup lang="ts">
 import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import {
+  escalationLevelName,
   isEscalationLevelFilled,
   resetSlaDataErrors,
   slaActiveScreen,
@@ -426,48 +427,35 @@ const assignmentPriorityOptions = [
   { label: "Round Robin", value: "Round Robin" },
 ];
 
-const escalationErrors = ref({ escalation_type: "", escalation_levels: "" });
+const escalationErrors = ref({ escalation_levels: "" });
 
 // Only levels the user actually filled in are stored.
 const filledEscalationLevels = () =>
   (slaData.value.custom_escalation_levels || []).filter(isEscalationLevelFilled);
 
 const validateEscalation = () => {
-  escalationErrors.value = { escalation_type: "", escalation_levels: "" };
+  escalationErrors.value = { escalation_levels: "" };
   if (!slaData.value.custom_enable_escalation) return true;
-
-  if (!slaData.value.custom_escalation_type) {
-    escalationErrors.value.escalation_type = "Escalation type is required";
-  }
 
   const levels = filledEscalationLevels();
   if (!levels.length) {
     escalationErrors.value.escalation_levels =
-      "Add at least one escalation level, or turn escalation off";
+      "Set up at least one escalation level, or turn escalation off";
+    return false;
   }
 
+  // Each level runs off its own SLA target, so their delays are independent
+  // and only need to be individually complete.
   const incomplete = levels.filter(
     (level) => !level.escalation_assignee?.trim() || !level.escalation_point
   );
   if (incomplete.length) {
-    escalationErrors.value.escalation_levels = `Level ${incomplete
-      .map((level) => level.level)
+    escalationErrors.value.escalation_levels = `${incomplete
+      .map((level) => escalationLevelName(level.level))
       .join(", ")}: assignee and escalation point are both required`;
-  } else {
-    // Each level has to fire after the one before it.
-    const inSeconds = { Minutes: 60, Hours: 3600, Days: 86400 };
-    const sorted = [...levels].sort((a, b) => a.level - b.level);
-    for (let i = 1; i < sorted.length; i++) {
-      const prev = sorted[i - 1].escalation_point * inSeconds[sorted[i - 1].unit || "Hours"];
-      const curr = sorted[i].escalation_point * inSeconds[sorted[i].unit || "Hours"];
-      if (curr <= prev) {
-        escalationErrors.value.escalation_levels = `Escalation point of level ${sorted[i].level} must be later than level ${sorted[i - 1].level}`;
-        break;
-      }
-    }
   }
 
-  return !escalationErrors.value.escalation_type && !escalationErrors.value.escalation_levels;
+  return !escalationErrors.value.escalation_levels;
 };
 
 const hasEmployeeAssignment = computed(() => {
@@ -526,7 +514,6 @@ const getSlaData = createResource({
       custom_auto_assign_team: data.custom_auto_assign_team || "",
       // Escalation
       custom_enable_escalation: Boolean(data.custom_enable_escalation),
-      custom_escalation_type: data.custom_escalation_type || "",
       custom_escalation_levels: toEscalationLevels(data.custom_escalation_levels),
       auto_close_days: data.auto_close_days,
     };
