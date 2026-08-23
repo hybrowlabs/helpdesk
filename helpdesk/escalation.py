@@ -8,14 +8,15 @@ its own SLA target as the trigger:
     due time.
 
 A level names the agents to assign to and an ``Escalation Point``, the delay
-after that target is missed. A scheduled job walks open tickets and fires the
-next due level. The two clocks are independent: if the ticket was answered in
+after that target is missed -- ``0`` escalates on the first run after the miss.
+A scheduled job walks open tickets and fires the next due level. The two clocks are independent: if the ticket was answered in
 time, level 1 can never fire, but level 2 still can.
 """
 
 import json
 
 import frappe
+from frappe.desk.form.assign_to import _remove as remove_assignment
 from frappe.desk.form.assign_to import add as assign
 from frappe.utils import add_to_date, get_datetime, now_datetime, today
 
@@ -275,6 +276,21 @@ def resolve_assignees(ticket, level) -> tuple[list[str], str]:
     return fallback, "escalation assignee (manager unavailable)"
 
 
+def unassign(ticket_name: str, user: str):
+    """Cancel ``user``'s open assignment on the ticket.
+
+    Never let a failed hand over abort the escalation: the level's agents are
+    already assigned by the time this runs.
+    """
+    try:
+        remove_assignment("HD Ticket", ticket_name, user, ignore_permissions=True)
+    except Exception:
+        frappe.log_error(
+            frappe.get_traceback(),
+            f"SLA Escalation could not unassign {user} from {ticket_name}",
+        )
+
+
 def escalate(ticket_name: str, sla, level) -> bool:
     """Assign ``level``'s agents to the ticket and record the escalation."""
     level_name = ESCALATION_LEVEL_NAMES.get(level.level, f"Level {level.level}")
@@ -289,6 +305,10 @@ def escalate(ticket_name: str, sla, level) -> bool:
         )
         return False
 
+    # An escalation is a hand over: whoever held the ticket keeps it only if
+    # this level assigns it back to them.
+    replaced = [user for user in get_current_assignees(ticket) if user not in assignees]
+
     assign(
         {
             "assign_to": assignees,
@@ -296,8 +316,11 @@ def escalate(ticket_name: str, sla, level) -> bool:
             "name": ticket.name,
         }
     )
-    # ``assign_to.add`` writes ``_assign`` out of band, reload before saving so
-    # the ticket does not overwrite it with the stale value.
+    for user in replaced:
+        unassign(ticket.name, user)
+
+    # ``assign_to`` writes ``_assign`` out of band, reload before saving so the
+    # ticket does not overwrite it with the stale value.
     ticket.reload()
 
     ticket.escalation_level = level.level
@@ -320,11 +343,13 @@ def escalate(ticket_name: str, sla, level) -> bool:
                 frappe.get_traceback(), f"SLA Escalation notification failed for {user}"
             )
 
-    log_ticket_activity(
-        ticket.name,
+    activity = (
         f"escalated to level {level.level} ({level_name}) via {via}:"
-        f" {', '.join(assignees)}",
+        f" {', '.join(assignees)}"
     )
+    if replaced:
+        activity += f", unassigned {', '.join(replaced)}"
+    log_ticket_activity(ticket.name, activity)
     publish_event("helpdesk:ticket-assignee-update", {"name": ticket.name})
     return True
 

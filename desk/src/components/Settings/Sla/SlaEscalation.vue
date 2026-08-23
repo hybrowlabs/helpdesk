@@ -61,11 +61,12 @@
                 size="sm"
                 variant="subtle"
                 label="Escalation Point"
+                min="0"
                 :model-value="level.escalation_point"
                 @update:model-value="
                   (val) => (level.escalation_point = val === '' ? null : Number(val))
                 "
-                placeholder="e.g. 3"
+                placeholder="e.g. 3, or 0 to escalate right away"
               />
               <FormControl
                 type="select"

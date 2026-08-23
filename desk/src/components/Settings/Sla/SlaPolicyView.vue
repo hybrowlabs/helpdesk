@@ -365,6 +365,7 @@ import ConfirmDialog from "@/components/ConfirmDialog.vue";
 import {
   escalationLevelName,
   isEscalationLevelFilled,
+  isEscalationPointSet,
   resetSlaDataErrors,
   slaActiveScreen,
   slaData,
@@ -445,14 +446,23 @@ const validateEscalation = () => {
   }
 
   // Each level runs off its own SLA target, so their delays are independent
-  // and only need to be individually complete.
+  // and only need to be individually complete. 0 is a valid point: it
+  // escalates as soon as the target is missed.
   const incomplete = levels.filter(
-    (level) => !level.escalation_assignee?.trim() || !level.escalation_point
+    (level) => !level.escalation_assignee?.trim() || !isEscalationPointSet(level)
   );
   if (incomplete.length) {
     escalationErrors.value.escalation_levels = `${incomplete
       .map((level) => escalationLevelName(level.level))
       .join(", ")}: assignee and escalation point are both required`;
+    return false;
+  }
+
+  const negative = levels.filter((level) => Number(level.escalation_point) < 0);
+  if (negative.length) {
+    escalationErrors.value.escalation_levels = `${negative
+      .map((level) => escalationLevelName(level.level))
+      .join(", ")}: escalation point cannot be negative`;
   }
 
   return !escalationErrors.value.escalation_levels;

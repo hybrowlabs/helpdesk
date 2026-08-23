@@ -78,9 +78,12 @@ class HDServiceLevelAgreement(Document):
                         " manager."
                     ).format(level.level)
                 )
-            if not level.escalation_point or level.escalation_point < 0:
+            # 0 is a valid point: escalate as soon as the target is missed.
+            if cint(level.escalation_point) < 0:
                 frappe.throw(
-                    _("Set a positive Escalation Point for level {0}.").format(level.level)
+                    _("Escalation Point for level {0} cannot be negative.").format(
+                        level.level
+                    )
                 )
 
             if level.level not in ESCALATION_LEVEL_NAMES:

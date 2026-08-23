@@ -111,10 +111,17 @@ export function toEscalationLevels(rows) {
   return levels;
 }
 
+// 0 is a real escalation point -- it fires as soon as the target is missed --
+// so only an empty value counts as unset.
+export function isEscalationPointSet(level) {
+  const point = level?.escalation_point;
+  return point !== null && point !== undefined && point !== "";
+}
+
 export function isEscalationLevelFilled(level) {
   return (
     Boolean(level?.escalation_assignee?.trim()) ||
-    Boolean(level?.escalation_point) ||
+    isEscalationPointSet(level) ||
     Boolean(level?.assign_to_manager)
   );
 }
