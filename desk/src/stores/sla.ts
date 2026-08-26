@@ -50,6 +50,82 @@ const defaultSupportAndResolution = [
   },
 ];
 
+// Two fixed levels, each measured from its own SLA target.
+export const escalationLevelDefs = [
+  {
+    level: 1,
+    name: "FAT Escalation",
+    hint: "Fires when the first response target is missed, by the delay set below.",
+  },
+  {
+    level: 2,
+    name: "TAT Escalation",
+    hint: "Fires when the resolution (turnaround) target is missed, by the delay set below.",
+  },
+];
+
+export const ESCALATION_LEVEL_COUNT = escalationLevelDefs.length;
+
+export function escalationLevelName(level) {
+  return (
+    escalationLevelDefs.find((def) => def.level === level)?.name || `Level ${level}`
+  );
+}
+
+export function escalationLevelHint(level) {
+  return escalationLevelDefs.find((def) => def.level === level)?.hint || "";
+}
+
+export const escalationUnitOptions = [
+  { label: "Minutes", value: "Minutes" },
+  { label: "Hours", value: "Hours" },
+  { label: "Days", value: "Days" },
+];
+
+// The form always shows a fixed set of levels; empty ones are dropped on save.
+export function defaultEscalationLevels() {
+  return Array.from({ length: ESCALATION_LEVEL_COUNT }, (_, index) => ({
+    level: index + 1,
+    assign_to_manager: false,
+    escalation_assignee: "",
+    escalation_point: null,
+    unit: "Hours",
+  }));
+}
+
+// Merge saved rows into the fixed level slots the form renders.
+export function toEscalationLevels(rows) {
+  const levels = defaultEscalationLevels();
+  (rows || []).forEach((row) => {
+    const index = (row.level || 0) - 1;
+    if (index < 0) return;
+    // Levels are fixed; ignore any stale row beyond them.
+    if (index >= levels.length) return;
+    const slot = levels[index];
+    slot.level = row.level;
+    slot.assign_to_manager = Boolean(row.assign_to_manager);
+    slot.escalation_assignee = row.escalation_assignee || "";
+    slot.escalation_point = row.escalation_point ?? null;
+    slot.unit = row.unit || "Hours";
+  });
+  return levels;
+}
+
+// 0 is a real escalation point -- it fires as soon as the target is missed --
+// so only an empty value counts as unset.
+export function isEscalationPointSet(level) {
+  const point = level?.escalation_point;
+  return point !== null && point !== undefined && point !== "";
+}
+
+export function isEscalationLevelFilled(level) {
+  return (
+    Boolean(level?.escalation_assignee?.trim()) ||
+    isEscalationPointSet(level) ||
+    Boolean(level?.assign_to_manager)
+  );
+}
+
 export const slaData = ref({
   name: "",
   service_level: "",
@@ -81,12 +157,9 @@ export const slaData = ref({
   custom_use_assignee_holiday_list: false,
   custom_auto_assign_team: "",
   auto_close_days: 0,
-  // Second level escalation fields
-  custom_second_level_escalation_enabled: false,
-  custom_second_level_escalation_target: "",
-  custom_second_level_escalation_user: "",
-  custom_second_level_escalation_team: "",
-  custom_second_level_escalation_delay_hours: 24,
+  // Escalation
+  custom_enable_escalation: false,
+  custom_escalation_levels: defaultEscalationLevels(),
 });
 
 export const resetSlaData = () => {
@@ -121,12 +194,9 @@ export const resetSlaData = () => {
     custom_use_assignee_holiday_list: false,
     custom_auto_assign_team: "",
     auto_close_days: 0,
-    // Second level escalation fields
-    custom_second_level_escalation_enabled: false,
-    custom_second_level_escalation_target: "",
-    custom_second_level_escalation_user: "",
-    custom_second_level_escalation_team: "",
-    custom_second_level_escalation_delay_hours: 24,
+    // Escalation
+    custom_enable_escalation: false,
+    custom_escalation_levels: defaultEscalationLevels(),
   };
 };
 

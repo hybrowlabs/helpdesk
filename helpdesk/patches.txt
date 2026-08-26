@@ -28,3 +28,5 @@ helpdesk.patches.add_fields_in_assignment_rule
 helpdesk.patches.create_missing_custom_fields
 helpdesk.helpdesk.doctype.hd_ticket.patches.migrate_resolved_to_requested_closure
 helpdesk.helpdesk.doctype.hd_ticket.patches.migrate_replied_to_awaiting_user_response
+helpdesk.patches.rebuild_escalation_fields
+helpdesk.patches.escalation_two_levels

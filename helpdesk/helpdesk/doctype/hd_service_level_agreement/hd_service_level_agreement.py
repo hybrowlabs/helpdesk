@@ -15,7 +15,7 @@ from frappe.utils import (
     to_timedelta,
 )
 
-from helpdesk.api.sla import find_duplicate_sla_condition
+from helpdesk.api.sla import find_duplicate_sla_category, find_duplicate_sla_condition
 from helpdesk.utils import get_context, publish_event
 
 
@@ -28,6 +28,89 @@ class HDServiceLevelAgreement(Document):
         self.validate_support_and_resolution()
         self.validate_condition()
         self.validate_duplicate_condition_schedule()
+        self.validate_duplicate_category()
+        self.validate_escalation()
+
+    def validate_duplicate_category(self):
+        """Only one SLA may target a given category / sub-category."""
+        duplicate = find_duplicate_sla_category(self, exclude_name=self.name)
+        if not duplicate:
+            return
+
+        name, category, sub_category = duplicate
+        target = (
+            _("category {0} and sub-category {1}").format(category, sub_category)
+            if sub_category
+            else _("category {0}").format(category)
+        )
+        # Plain text: this message also surfaces as a toast in the portal.
+        frappe.throw(
+            _("Duplicate SLA. {0} already covers {1}.").format(name, target),
+            title=_("Duplicate SLA"),
+        )
+
+    def validate_escalation(self):
+        """Normalise and sanity check the escalation levels."""
+        from helpdesk.escalation import ESCALATION_LEVEL_NAMES
+        from helpdesk.helpdesk.doctype.hd_sla_escalation_level.hd_sla_escalation_level import (
+            parse_assignees,
+        )
+
+        levels = self.get("custom_escalation_levels") or []
+
+        if not self.get("custom_enable_escalation"):
+            # Keep the rows around so re-enabling escalation restores the config.
+            return
+
+        configured = []
+        for level in levels:
+            assignees = parse_assignees(level.escalation_assignee)
+            level.escalation_assignee = ", ".join(assignees)
+            if not assignees and not level.escalation_point:
+                continue
+            configured.append(level)
+
+            if not assignees:
+                frappe.throw(
+                    _(
+                        "Set an Escalation Assignee for level {0}. It is also the"
+                        " fallback when Assign to Manager cannot find an available"
+                        " manager."
+                    ).format(level.level)
+                )
+            # 0 is a valid point: escalate as soon as the target is missed.
+            if cint(level.escalation_point) < 0:
+                frappe.throw(
+                    _("Escalation Point for level {0} cannot be negative.").format(
+                        level.level
+                    )
+                )
+
+            if level.level not in ESCALATION_LEVEL_NAMES:
+                frappe.throw(
+                    _("Escalation level {0} is not valid. Levels are {1}.").format(
+                        level.level,
+                        ", ".join(
+                            f"{no} ({name})"
+                            for no, name in ESCALATION_LEVEL_NAMES.items()
+                        ),
+                    )
+                )
+
+            for user in assignees:
+                if not frappe.db.exists("User", user):
+                    frappe.throw(
+                        _("{0} in escalation level {1} is not a user.").format(
+                            user, level.level
+                        )
+                    )
+
+        if not configured:
+            frappe.throw(_("Add at least one escalation level to enable escalation."))
+
+        seen_levels = [level.level for level in configured]
+        if len(seen_levels) != len(set(seen_levels)):
+            frappe.throw(_("Escalation levels must be unique."))
 
     def validate_priorities(self):
         self.validate_priority_defaults()

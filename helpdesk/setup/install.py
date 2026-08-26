@@ -5,6 +5,7 @@ from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.permissions import add_permission, update_permission_property
 
 from helpdesk.consts import DEFAULT_ARTICLE_CATEGORY
+from helpdesk.escalation import ESCALATION_CUSTOM_FIELDS
 
 from .default_template import create_default_template
 from .file import create_helpdesk_folder
@@ -247,108 +248,8 @@ def add_property_setters():
 def get_custom_fields():
     """Helpdesk specific custom fields that needs to be added to various DocTypes."""
     return {
-        "HD Service Level Agreement": [
-            # Second Level Escalation Section
-            {
-                "fieldname": "custom_second_level_escalation_section",
-                "fieldtype": "Section Break",
-                "label": "Second Level Escalation",
-                "description": "Configure automatic second level escalation when first level doesn't resolve",
-                "insert_after": "custom_use_assignee_holiday_list",
-            },
-            {
-                "fieldname": "custom_second_level_escalation_enabled",
-                "fieldtype": "Check",
-                "label": "Enable Second Level Escalation",
-                "default": "0",
-                "insert_after": "custom_second_level_escalation_section",
-            },
-            {
-                "fieldname": "custom_second_level_escalation_target",
-                "fieldtype": "Select",
-                "label": "Second Level Escalation Target",
-                "options": "\nManager of Assignee\nManager of HRBP\nManager of HOD\nSpecific User\nSpecific Team",
-                "depends_on": "eval: doc.custom_second_level_escalation_enabled",
-                "insert_after": "custom_second_level_escalation_enabled",
-            },
-            {
-                "fieldname": "custom_second_level_escalation_user",
-                "fieldtype": "Link",
-                "label": "Second Level User",
-                "options": "HD Agent",
-                "depends_on": "eval: doc.custom_second_level_escalation_target == 'Specific User'",
-                "insert_after": "custom_second_level_escalation_target",
-            },
-            {
-                "fieldname": "custom_second_level_escalation_team",
-                "fieldtype": "Link",
-                "label": "Second Level Team",
-                "options": "HD Team",
-                "depends_on": "eval: doc.custom_second_level_escalation_target == 'Specific Team'",
-                "insert_after": "custom_second_level_escalation_user",
-            },
-            {
-                "fieldname": "custom_second_level_escalation_delay_hours",
-                "fieldtype": "Int",
-                "label": "Second Level Escalation Delay (hours)",
-                "default": "24",
-                "depends_on": "eval: doc.custom_second_level_escalation_enabled",
-                "insert_after": "custom_second_level_escalation_team",
-            },
-        ],
-        "HD Ticket": [
-            # Escalation Tracking Fields
-            {
-                "fieldname": "custom_escalation_tracking_section",
-                "fieldtype": "Section Break",
-                "label": "Escalation Tracking",
-                "collapsible": 1,
-                "insert_after": "resolution_date",
-            },
-            {
-                "fieldname": "escalation_level",
-                "fieldtype": "Int",
-                "label": "Escalation Level",
-                "default": "0",
-                "read_only": 1,
-                "insert_after": "custom_escalation_tracking_section",
-            },
-            {
-                "fieldname": "first_escalation_on",
-                "fieldtype": "Datetime",
-                "label": "First Escalation Time",
-                "read_only": 1,
-                "insert_after": "escalation_level",
-            },
-            {
-                "fieldname": "first_escalated_to",
-                "fieldtype": "Link",
-                "label": "First Escalated To",
-                "options": "User",
-                "read_only": 1,
-                "insert_after": "first_escalation_on",
-            },
-            {
-                "fieldname": "custom_escalation_col_break",
-                "fieldtype": "Column Break",
-                "insert_after": "first_escalated_to",
-            },
-            {
-                "fieldname": "second_escalation_on",
-                "fieldtype": "Datetime",
-                "label": "Second Escalation Time",
-                "read_only": 1,
-                "insert_after": "custom_escalation_col_break",
-            },
-            {
-                "fieldname": "second_escalated_to",
-                "fieldtype": "Link",
-                "label": "Second Escalated To",
-                "options": "User",
-                "read_only": 1,
-                "insert_after": "second_escalation_on",
-            },
-        ],
+        "HD Service Level Agreement": ESCALATION_CUSTOM_FIELDS["HD Service Level Agreement"],
+        "HD Ticket": ESCALATION_CUSTOM_FIELDS["HD Ticket"],
         "Assignment Rule": [
             {
                 "description": "Autogenerated field by Helpdesk App",
