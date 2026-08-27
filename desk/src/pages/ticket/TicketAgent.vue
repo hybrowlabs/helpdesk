@@ -39,24 +39,28 @@
              categories are mutually exclusive, so only one can ever render. -->
         <TicketWorkflowActions
           v-if="isAccountOpeningTicket && accountOpeningCaseName"
+          ref="workflowActionsRef"
           :ticket-id="accountOpeningCaseName"
           doctype="Account Opening"
           @updated="ticket.reload()"
         />
         <TicketWorkflowActions
           v-else-if="isModificationTicket && modificationCaseName"
+          ref="workflowActionsRef"
           :ticket-id="modificationCaseName"
           doctype="Client Modification"
           @updated="ticket.reload()"
         />
         <TicketWorkflowActions
           v-else-if="isClosureTicket && closureCaseName"
+          ref="workflowActionsRef"
           :ticket-id="closureCaseName"
           doctype="Account Closure"
           @updated="ticket.reload()"
         />
         <TicketWorkflowActions
           v-else-if="isStockTransferTicket && transferCaseName"
+          ref="workflowActionsRef"
           :ticket-id="transferCaseName"
           doctype="Stock Transfer"
           @updated="ticket.reload()"
@@ -164,6 +168,7 @@
                   () => {
                     ticket.reload();
                     reloadAccountOpeningCase();
+                    refreshWorkflowActions();
                   }
                 "
               />
@@ -174,6 +179,7 @@
                   () => {
                     ticket.reload();
                     reloadModificationCase();
+                    refreshWorkflowActions();
                   }
                 "
               />
@@ -184,6 +190,7 @@
                   () => {
                     ticket.reload();
                     reloadClosureCase();
+                    refreshWorkflowActions();
                   }
                 "
               />
@@ -194,6 +201,7 @@
                   () => {
                     ticket.reload();
                     reloadTransferCase();
+                    refreshWorkflowActions();
                   }
                 "
               />
@@ -800,6 +808,23 @@ const { caseName: transferCaseName, reload: reloadTransferCase } =
     () => props.ticketId,
     () => isStockTransferTicket.value
   );
+
+// The four TicketWorkflowActions above are mutually exclusive, so at most one is
+// ever mounted and a single ref is enough to reach whichever it is.
+const workflowActionsRef = ref<{ reload: () => void } | null>(null);
+
+/**
+ * Re-read the workflow after a case has been written to.
+ *
+ * Which transitions the server offers depends on the case's own fields — FR-10
+ * only offers "Start Call Verification" once `signature_verification_status` is
+ * Verified, for instance. Saving the Data tab changes those fields but not the
+ * case *name*, so the workflow composable's watch never re-fires and the Actions
+ * menu would keep showing the pre-save options until the page was reloaded.
+ */
+function refreshWorkflowActions(): void {
+  workflowActionsRef.value?.reload();
+}
 
 const tabIndex = ref(0);
 const tabs = computed(() => {

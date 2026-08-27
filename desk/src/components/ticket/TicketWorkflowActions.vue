@@ -80,10 +80,19 @@ const {
   applying,
   error,
   apply,
+  reload,
 } = useTicketWorkflow(
   () => props.ticketId,
   () => props.doctype
 );
+
+// Which transitions are available depends on the *case's own fields* — FR-10
+// gates "Start Call Verification" on `signature_verification_status`, for
+// instance. Saving the Data tab changes those fields without changing the case
+// name, so the composable's watch (which keys on name + doctype) does not
+// re-fire and the menu would keep showing the pre-save options until the page
+// was reloaded. The parent calls this after any save that touches the case.
+defineExpose({ reload });
 
 // Only when there is genuinely nothing to show and a retry is not in flight —
 // a failed *action* keeps the badge, since the state is still known.
