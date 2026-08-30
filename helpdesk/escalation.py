@@ -358,6 +358,17 @@ def get_sorted_levels(sla) -> list:
     return sorted(levels, key=lambda level: (level.level or 0))
 
 
+def get_pause_statuses(sla) -> list[str]:
+    """Return the statuses that put the SLA clock on hold.
+
+    Replying to the customer moves a ticket to ``Awaiting User Response``, which
+    stops the resolution clock until they come back. ``agreement_status`` is not
+    a reliable stand-in: a ticket that already failed keeps reading ``Failed``
+    while it sits on hold.
+    """
+    return [row.status for row in sla.get("pause_sla_on") or []]
+
+
 def get_open_statuses(sla) -> list[str]:
     """Return ticket statuses that keep the escalation clock running."""
     stopped = {row.status for row in sla.get("sla_fulfilled_on") or []}
@@ -642,6 +653,7 @@ def process_sla(sla_name: str):
 #                met its targets and closed
 STATUS_PENDING = "pending"
 STATUS_BREACHED = "breached"
+STATUS_PAUSED = "paused"
 STATUS_NONE = "none"
 
 STATUS_TICKET_FIELDS = TICKET_FIELDS + ["agreement_status"]
@@ -654,6 +666,9 @@ EMPTY_STATUS = {
     "next_level_name": None,
     "due_on": None,
     "remaining_seconds": None,
+    # The ticket is waiting on the customer, so the SLA clock is on hold. Drives
+    # the TAT column, which must not keep counting down while it waits.
+    "sla_paused": False,
     "is_working_now": True,
     # Server clock at the time of the read. The UI runs its countdown against
     # this rather than the browser clock, so a machine whose time is off (or in
@@ -738,6 +753,7 @@ def get_ticket_escalation_status(ticket, last_escalation=None) -> dict:
     status = dict(
         EMPTY_STATUS,
         server_now=now_datetime(),
+        sla_paused=ticket.get("status") in get_pause_statuses(sla),
         enabled=bool(sla.get("custom_enable_escalation")),
         level=current_level,
         last_escalated_on=last.get("escalated_on"),
@@ -758,9 +774,13 @@ def get_ticket_escalation_status(ticket, last_escalation=None) -> dict:
     if not levels:
         return settled()
 
-    # A ticket that is resolved, closed or on hold is off the clock. Whatever it
-    # escalated still stands, but nothing new is coming.
+    # A ticket that is resolved, closed or on hold is off the clock.
     if ticket.get("status") not in get_open_statuses(sla):
+        # On hold the clock stops rather than lapses: there is still an
+        # escalation ahead, it just is not counting down.
+        if status["sla_paused"] and get_next_level(sla, ticket, levels, schedule=schedule)[0]:
+            status["status"] = STATUS_PAUSED
+            return status
         return settled()
 
     # Every level that could fire has fired, or none ever could.

@@ -75,7 +75,7 @@ export interface ViewLog {
 export interface TicketEscalation {
   // "pending" -- next level is coming up, "breached" -- escalation point passed
   // or every level has fired, "none" -- nothing to escalate
-  status: "pending" | "breached" | "none";
+  status: "pending" | "breached" | "paused" | "none";
   enabled: boolean;
   level: number;
   next_level: number | null;
@@ -83,6 +83,8 @@ export interface TicketEscalation {
   due_on: string | null;
   // Working seconds left until `due_on`, per the SLA's support hours
   remaining_seconds: number | null;
+  // Ticket is awaiting the customer, so the SLA resolution clock is on hold
+  sla_paused: boolean;
   is_working_now: boolean;
   // Server clock at read time, so the UI counts against it not the browser's
   server_now: string | null;

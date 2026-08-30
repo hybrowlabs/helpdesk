@@ -170,6 +170,11 @@ const escalationSeconds = computed(() =>
 const escalationBadge = computed(() => {
   if (!escalation.value || escalation.value.status === "none") return null;
 
+  // On hold: an escalation is still ahead, it just is not counting down.
+  if (escalation.value.status === "paused") {
+    return { label: "Paused", color: "blue" };
+  }
+
   if (escalation.value.status === "pending" && escalationSeconds.value > 0) {
     return {
       label: `Due in ${formatTime(escalationSeconds.value)}`,
@@ -191,6 +196,10 @@ const escalationTooltip = computed(() => {
     }
     if (!e.is_working_now) text += " (desk currently closed)";
     return text;
+  }
+
+  if (e.status === "paused") {
+    return "Waiting on the customer — the SLA clock is on hold";
   }
 
   if (e.last_escalated_on) {
