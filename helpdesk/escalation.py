@@ -14,11 +14,20 @@ time, level 1 can never fire, but level 2 still can.
 """
 
 import json
+from contextlib import contextmanager
+from datetime import datetime, time, timedelta
 
 import frappe
 from frappe.desk.form.assign_to import _remove as remove_assignment
 from frappe.desk.form.assign_to import add as assign
-from frappe.utils import add_to_date, get_datetime, now_datetime, today
+from frappe.utils import (
+    add_to_date,
+    get_datetime,
+    get_weekdays,
+    getdate,
+    now_datetime,
+    today,
+)
 
 from helpdesk.helpdesk.doctype.hd_sla_escalation_level.hd_sla_escalation_level import (
     UNIT_SECONDS,
@@ -124,6 +133,8 @@ TICKET_FIELDS = [
     "name",
     "status",
     "sla",
+    # Needed by SLAs that resolve holidays from the assignee's Employee record.
+    "_assign",
     "escalation_level",
     "service_level_agreement_creation",
     "creation",
@@ -159,10 +170,182 @@ def get_trigger_time(ticket, level_no: int):
     return None
 
 
-def get_level_due_time(trigger_time, level):
-    """Return when ``level`` becomes due, given the trigger time."""
-    seconds = (level.escalation_point or 0) * UNIT_SECONDS.get(level.unit or "Hours", 3600)
-    return add_to_date(trigger_time, seconds=seconds, as_datetime=True)
+# Never walk the calendar forever: an SLA with a broken schedule would other-
+# wise spin here. Past this many days we fall back to plain wall clock.
+MAX_DAY_SCAN = 400
+
+
+@contextmanager
+def sla_ticket_context(ticket):
+    """Expose the ticket to pw_helpdesk's SLA overrides while a block runs.
+
+    An SLA with ``custom_use_assignee_holiday_list`` resolves holidays from the
+    assignee's Employee record, and the override reads that ticket off this
+    flag. Without it the escalation clock would silently fall back to the SLA's
+    generic holiday list.
+    """
+    previous = getattr(frappe.flags, "pw_sla_ticket", None)
+    frappe.flags.pw_sla_ticket = ticket
+    try:
+        yield
+    finally:
+        frappe.flags.pw_sla_ticket = previous
+
+
+def resolve_schedule(sla, schedule=None):
+    """Return ``(workdays, holidays)`` for the SLA, resolved once per ticket.
+
+    Holiday resolution can hit the database per call, so callers working on one
+    ticket resolve it once and pass it down.
+    """
+    if schedule is not None:
+        return schedule
+    return sla.get_workdays(), set(sla.get_holidays())
+
+
+def get_workday_window(sla, day, holidays, workdays):
+    """Return the ``(start, end)`` datetimes the SLA works on ``day``.
+
+    ``None`` means the SLA does not work that day at all -- a holiday, a weekday
+    missing from Support and Resolution, or a row whose window is empty.
+    """
+    if day in holidays:
+        return None
+
+    workday = workdays.get(get_weekdays()[day.weekday()])
+    if not workday:
+        return None
+
+    midnight = datetime.combine(day, time.min)
+    start = midnight + (workday.start_time or timedelta())
+    end = midnight + (workday.end_time or timedelta())
+    if end <= start:
+        return None
+    return start, end
+
+
+def add_business_seconds(sla, start_at, seconds: float, schedule=None):
+    """Return ``start_at`` advanced by ``seconds`` of the SLA's working time.
+
+    Falls back to wall clock when the SLA has no working hours configured, so a
+    half set up SLA still escalates instead of silently never firing.
+    """
+    result = get_datetime(start_at)
+    seconds = max(float(seconds or 0), 0)
+    if not seconds:
+        return result
+
+    workdays, holidays = resolve_schedule(sla, schedule)
+    if not workdays:
+        return add_to_date(result, seconds=seconds, as_datetime=True)
+
+    remaining = seconds
+    cursor = result
+
+    for _ in range(MAX_DAY_SCAN):
+        window = get_workday_window(sla, getdate(cursor), holidays, workdays)
+        if window and cursor < window[1]:
+            point = max(cursor, window[0])
+            taken = min(remaining, (window[1] - point).total_seconds())
+            remaining -= taken
+            cursor = point + timedelta(seconds=taken)
+            if remaining <= 0:
+                return cursor
+        # Nothing left to use today, restart at the top of the next one.
+        cursor = datetime.combine(getdate(cursor) + timedelta(days=1), time.min)
+
+    # Ran off the end of the scan window; spend what is left as wall clock.
+    return add_to_date(cursor, seconds=remaining, as_datetime=True)
+
+
+def business_seconds_between(sla, start_at, end_at, schedule=None) -> float:
+    """Return the SLA working seconds in ``[start_at, end_at)``. Never negative."""
+    start = get_datetime(start_at)
+    end = get_datetime(end_at)
+    if end <= start:
+        return 0.0
+
+    workdays, holidays = resolve_schedule(sla, schedule)
+    if not workdays:
+        return (end - start).total_seconds()
+
+    total = 0.0
+    day = getdate(start)
+    last_day = getdate(end)
+
+    for _ in range(MAX_DAY_SCAN):
+        if day > last_day:
+            break
+        window = get_workday_window(sla, day, holidays, workdays)
+        if window:
+            overlap_start = max(window[0], start)
+            overlap_end = min(window[1], end)
+            if overlap_end > overlap_start:
+                total += (overlap_end - overlap_start).total_seconds()
+        day += timedelta(days=1)
+
+    return total
+
+
+def is_working_moment(sla, moment, schedule=None) -> bool:
+    """Is ``moment`` inside the SLA's working hours?
+
+    An SLA with no working hours configured is treated as always working, which
+    matches how ``add_business_seconds`` falls back for it.
+    """
+    workdays, holidays = resolve_schedule(sla, schedule)
+    if not workdays:
+        return True
+
+    moment = get_datetime(moment)
+    window = get_workday_window(sla, getdate(moment), holidays, workdays)
+    return bool(window and window[0] <= moment < window[1])
+
+
+def get_working_boundaries(sla, moment, schedule=None):
+    """Return ``(working_until, next_working_start)`` around ``moment``.
+
+    Exactly one is set: inside working hours the clock runs until
+    ``working_until``, outside them it is frozen until ``next_working_start``.
+    Both are ``None`` for an SLA with no working hours, which never pauses.
+    """
+    workdays, holidays = resolve_schedule(sla, schedule)
+    if not workdays:
+        return None, None
+
+    moment = get_datetime(moment)
+    day = getdate(moment)
+
+    for _ in range(MAX_DAY_SCAN):
+        window = get_workday_window(sla, day, holidays, workdays)
+        if window:
+            start, end = window
+            if moment < start:
+                return None, start
+            if moment < end:
+                return end, None
+        day += timedelta(days=1)
+
+    return None, None
+
+
+def get_level_offset_seconds(level) -> float:
+    """Return a level's Escalation Point in seconds."""
+    point = level.get("escalation_point") if isinstance(level, dict) else level.escalation_point
+    unit = level.get("unit") if isinstance(level, dict) else level.unit
+    return (point or 0) * UNIT_SECONDS.get(unit or "Hours", 3600)
+
+
+def get_level_due_time(sla, trigger_time, level, schedule=None):
+    """Return when ``level`` becomes due, given the trigger time.
+
+    The Escalation Point is spent in working time, the same way the SLA targets
+    it hangs off are calculated -- a 4 hour point set at 5pm Friday comes due
+    Monday morning, not over the weekend.
+    """
+    return add_business_seconds(
+        sla, trigger_time, get_level_offset_seconds(level), schedule=schedule
+    )
 
 
 def get_sorted_levels(sla) -> list:
@@ -370,8 +553,8 @@ def run_sla_escalations():
             frappe.log_error(frappe.get_traceback(), f"SLA Escalation failed for {sla_name}")
 
 
-def get_due_level(ticket, levels, now):
-    """Return the lowest not-yet-fired level whose own target is overdue.
+def iter_pending_levels(sla, ticket, levels, schedule=None):
+    """Yield ``(level, due_on)`` for every level this ticket can still fire.
 
     Each level runs off a different SLA target, so a level that can never fire
     -- FAT once the ticket has been answered, say -- must not block the levels
@@ -385,9 +568,25 @@ def get_due_level(ticket, levels, now):
         trigger_time = get_trigger_time(ticket, level.level)
         if not trigger_time:
             continue
-        if now >= get_level_due_time(trigger_time, level):
-            return level
+        yield level, get_level_due_time(sla, trigger_time, level, schedule=schedule)
 
+
+def get_next_level(sla, ticket, levels, schedule=None):
+    """Return ``(level, due_on)`` for the next escalation, in level order.
+
+    This is what the ticket shows as its upcoming escalation: level 1 until it
+    has fired, then level 2. ``(None, None)`` means nothing is left to escalate.
+    """
+    for level, due_on in iter_pending_levels(sla, ticket, levels, schedule=schedule):
+        return level, due_on
+    return None, None
+
+
+def get_due_level(sla, ticket, levels, now, schedule=None):
+    """Return the lowest not-yet-fired level whose own target is overdue."""
+    for level, due_on in iter_pending_levels(sla, ticket, levels, schedule=schedule):
+        if now >= due_on:
+            return level
     return None
 
 
@@ -415,7 +614,9 @@ def process_sla(sla_name: str):
 
     now = now_datetime()
     for ticket in tickets:
-        due_level = get_due_level(ticket, levels, now)
+        with sla_ticket_context(ticket):
+            schedule = resolve_schedule(sla)
+            due_level = get_due_level(sla, ticket, levels, now, schedule=schedule)
         if not due_level:
             continue
 
@@ -428,3 +629,205 @@ def process_sla(sla_name: str):
                 frappe.get_traceback(),
                 f"SLA Escalation failed for ticket {ticket.name}",
             )
+
+
+# ---------------------------------------------------------------------------
+# Escalation status, for the ticket UI
+# ---------------------------------------------------------------------------
+
+# What the ticket has left to escalate:
+#   pending   -- a level is coming up, ``remaining_seconds`` counts down to it
+#   breached  -- the escalation point has passed, or every level has fired
+#   none      -- nothing to escalate: no escalation configured, or the ticket
+#                met its targets and closed
+STATUS_PENDING = "pending"
+STATUS_BREACHED = "breached"
+STATUS_NONE = "none"
+
+STATUS_TICKET_FIELDS = TICKET_FIELDS + ["agreement_status"]
+
+EMPTY_STATUS = {
+    "status": STATUS_NONE,
+    "enabled": False,
+    "level": 0,
+    "next_level": None,
+    "next_level_name": None,
+    "due_on": None,
+    "remaining_seconds": None,
+    "is_working_now": True,
+    # Server clock at the time of the read. The UI runs its countdown against
+    # this rather than the browser clock, so a machine whose time is off (or in
+    # another timezone) still lands on zero exactly when escalation fires.
+    "server_now": None,
+    # Shift boundaries around `server_now`, for context in the UI.
+    "working_until": None,
+    "next_working_start": None,
+    "last_escalated_on": None,
+    "last_escalated_to": None,
+}
+
+
+def has_missed_sla(ticket) -> bool:
+    """Did this ticket miss a target, whether or not a level escalated?"""
+    if ticket.get("agreement_status") in ("Failed", "Overdue"):
+        return True
+
+    now = now_datetime()
+    for target, met_on in (("response_by", "first_responded_on"), ("resolution_by", "resolution_date")):
+        due = ticket.get(target)
+        if not due:
+            continue
+        actual = ticket.get(met_on)
+        if get_datetime(due) < (get_datetime(actual) if actual else now):
+            return True
+    return False
+
+
+def get_last_escalations(ticket_names) -> dict:
+    """Return ``{ticket: most recent escalation log row}`` in one query."""
+    if not ticket_names:
+        return {}
+
+    rows = frappe.get_all(
+        "HD Ticket Escalation Log",
+        filters={"parent": ["in", ticket_names], "parenttype": "HD Ticket"},
+        fields=["parent", "level", "escalation_type", "escalated_on", "escalated_to"],
+        order_by="escalated_on asc",
+        limit_page_length=0,
+    )
+    # Ascending, so the last row written for a ticket is the one that survives.
+    return {row.parent: row for row in rows}
+
+
+def get_last_escalation(ticket_name) -> dict:
+    """Return the most recent row of the ticket's escalation log."""
+    return get_last_escalations([ticket_name]).get(ticket_name, {})
+
+
+def get_ticket_escalation_status(ticket, last_escalation=None) -> dict:
+    """Return the upcoming escalation for a ticket, measured in working time.
+
+    Drives the ticket's "Remaining Escalation Business Time": the countdown runs
+    to level 1 (first response target + Escalation Point) until that level has
+    fired, then to level 2 (resolution target + Escalation Point). Once there is
+    nothing left to escalate the ticket reads as SLA breached.
+    """
+    # HD Ticket names are integers, so accept either a name or a fetched row.
+    if isinstance(ticket, (str, int)):
+        ticket = frappe.db.get_value(
+            "HD Ticket", ticket, STATUS_TICKET_FIELDS, as_dict=True
+        )
+    if not ticket or not ticket.get("sla"):
+        return dict(EMPTY_STATUS)
+
+    # The helpers below read ticket fields as attributes.
+    ticket = frappe._dict(ticket)
+
+    sla = frappe.get_cached_doc("HD Service Level Agreement", ticket["sla"])
+    # Resolve holidays and workdays once, with the ticket in context so an SLA
+    # set to use the assignee's holiday list actually gets it.
+    with sla_ticket_context(ticket):
+        schedule = resolve_schedule(sla)
+    current_level = ticket.get("escalation_level") or 0
+    last = (
+        last_escalation
+        if last_escalation is not None
+        else get_last_escalation(ticket["name"])
+    )
+
+    status = dict(
+        EMPTY_STATUS,
+        server_now=now_datetime(),
+        enabled=bool(sla.get("custom_enable_escalation")),
+        level=current_level,
+        last_escalated_on=last.get("escalated_on"),
+        last_escalated_to=last.get("escalated_to"),
+    )
+
+    # Nothing upcoming to count down to: the ticket reads as breached if it
+    # actually missed a target or already escalated, otherwise there is simply
+    # no escalation time to show.
+    def settled():
+        status["status"] = (
+            STATUS_BREACHED if (current_level or has_missed_sla(ticket)) else STATUS_NONE
+        )
+        return status
+
+    # No escalation configured on this SLA -- the SLA can still be breached.
+    levels = get_sorted_levels(sla) if status["enabled"] else []
+    if not levels:
+        return settled()
+
+    # A ticket that is resolved, closed or on hold is off the clock. Whatever it
+    # escalated still stands, but nothing new is coming.
+    if ticket.get("status") not in get_open_statuses(sla):
+        return settled()
+
+    # Every level that could fire has fired, or none ever could.
+    level, due_on = get_next_level(sla, ticket, levels, schedule=schedule)
+    if not level:
+        return settled()
+
+    now = now_datetime()
+    status.update(
+        next_level=level.level,
+        next_level_name=ESCALATION_LEVEL_NAMES.get(level.level, f"Level {level.level}"),
+        due_on=due_on,
+    )
+
+    if now >= due_on:
+        # Past the escalation point; the next scheduler run picks it up.
+        status["status"] = STATUS_BREACHED
+        status["remaining_seconds"] = 0
+        return status
+
+    working_until, next_working_start = get_working_boundaries(sla, now, schedule=schedule)
+    status.update(
+        status=STATUS_PENDING,
+        remaining_seconds=business_seconds_between(sla, now, due_on, schedule=schedule),
+        is_working_now=is_working_moment(sla, now, schedule=schedule),
+        working_until=working_until,
+        next_working_start=next_working_start,
+    )
+    return status
+
+
+def get_escalation_status_map(tickets) -> dict:
+    """Return ``{ticket name: escalation status}`` for a page of tickets.
+
+    Takes ticket names or already fetched rows. Rows missing any field the clock
+    needs are topped up in a single query, so a list view costs a couple of
+    queries rather than a couple per row.
+    """
+    if not tickets:
+        return {}
+
+    rows = {}
+    pending = []
+
+    for ticket in tickets:
+        if isinstance(ticket, (str, int)):
+            pending.append(ticket)
+        elif ticket and ticket.get("name"):
+            row = frappe._dict(ticket)
+            if any(field not in row for field in STATUS_TICKET_FIELDS):
+                pending.append(row.name)
+            else:
+                rows[row.name] = row
+
+    if pending:
+        for row in frappe.get_all(
+            "HD Ticket",
+            filters={"name": ["in", pending]},
+            fields=STATUS_TICKET_FIELDS,
+            limit_page_length=0,
+        ):
+            rows[row.name] = row
+
+    last_escalations = get_last_escalations(list(rows))
+    return {
+        name: get_ticket_escalation_status(
+            row, last_escalation=last_escalations.get(name) or {}
+        )
+        for name, row in rows.items()
+    }

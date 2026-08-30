@@ -6,7 +6,9 @@
       class="flex items-center text-base leading-5"
     >
       <Tooltip :text="s.label">
-        <div class="w-[126px] text-sm text-gray-600">{{ s.label }}</div>
+        <div class="w-[126px] shrink-0 text-sm leading-tight text-gray-600">
+          {{ s.label }}
+        </div>
       </Tooltip>
       <div class="flex items-center justify-between">
         <div v-if="s.value">{{ s.value }}</div>
@@ -44,9 +46,13 @@ const props = defineProps({
 
 let firstResponseInterval = null;
 let resolutionInterval = null;
+let escalationInterval = null;
 
 const firstResponseSeconds = ref(0);
 const resolutionSeconds = ref(0);
+// Server view of the escalation clock. Starts from the loaded ticket and is
+// refreshed in place when the support desk opens or closes under us.
+const escalation = ref(props.ticket.escalation ?? null);
 
 const firstResponseBadge = computed(() => {
   let firstResponse = null;
@@ -138,6 +144,91 @@ const resolutionBadge = computed(() => {
   return resolution;
 });
 
+// Remaining Escalation Business Time: a running clock to the ticket's next
+// escalation -- level 1 (first response target + escalation point) until that
+// has fired, then level 2 (resolution target + escalation point). The due time
+// itself is shift-aware: the escalation point is spent in the SLA's working
+// hours, so a 4h point at 4pm comes due late next morning, not at 8pm. The
+// countdown to it then runs continuously, landing on zero as it fires.
+const now = ref(Date.now());
+// Count against the server clock, not the browser's, so a skewed or
+// differently-zoned machine still hits zero at the right moment.
+const deadline = computed(() => {
+  const due = escalation.value?.due_on;
+  if (!due) return null;
+  const dueAt = dayjs(due).valueOf();
+  const serverNow = escalation.value?.server_now;
+  return serverNow ? dueAt + (Date.now() - dayjs(serverNow).valueOf()) : dueAt;
+});
+
+const escalationSeconds = computed(() =>
+  deadline.value === null
+    ? 0
+    : Math.max((deadline.value - now.value) / 1000, 0)
+);
+
+const escalationBadge = computed(() => {
+  if (!escalation.value || escalation.value.status === "none") return null;
+
+  if (escalation.value.status === "pending" && escalationSeconds.value > 0) {
+    return {
+      label: `Due in ${formatTime(escalationSeconds.value)}`,
+      color: escalation.value.is_working_now ? "orange" : "blue",
+    };
+  }
+
+  return { label: "SLA Breached", color: "red" };
+});
+
+const escalationTooltip = computed(() => {
+  const e = escalation.value;
+  if (!e) return "";
+
+  if (e.status === "pending" && e.due_on) {
+    let text = `${e.next_level_name} due ${dateFormat(e.due_on, dateTooltipFormat)}`;
+    if (e.remaining_seconds !== null) {
+      text += ` — ${formatTime(e.remaining_seconds)} of shift time left`;
+    }
+    if (!e.is_working_now) text += " (desk currently closed)";
+    return text;
+  }
+
+  if (e.last_escalated_on) {
+    return `Escalated to ${e.last_escalated_to} on ${dateFormat(
+      e.last_escalated_on,
+      dateTooltipFormat
+    )}`;
+  }
+
+  return "Escalation point passed";
+});
+
+function stopEscalationClock() {
+  if (escalationInterval) {
+    clearInterval(escalationInterval);
+    escalationInterval = null;
+  }
+}
+
+function startEscalationClock() {
+  stopEscalationClock();
+  if (escalation.value?.status !== "pending") return;
+
+  now.value = Date.now();
+  escalationInterval = setInterval(() => {
+    now.value = Date.now();
+  }, 1000);
+}
+
+watch(
+  () => props.ticket.escalation,
+  (value) => {
+    escalation.value = value ?? null;
+    startEscalationClock();
+  },
+  { deep: true, immediate: true }
+);
+
 function getCalculatedResolution() {
   let resolution = dayjs(props.ticket.resolution_by).add(
     props.ticket.total_hold_time,
@@ -167,6 +258,16 @@ const sections = computed(() => [
     badgeText: resolutionBadge.value.label,
     badgeColor: resolutionBadge.value.color,
   },
+  ...(escalationBadge.value
+    ? [
+        {
+          label: "Remaining Escalation Business Time",
+          tooltipValue: escalationTooltip.value,
+          badgeText: escalationBadge.value.label,
+          badgeColor: escalationBadge.value.color,
+        },
+      ]
+    : []),
   {
     label: "Source",
     value: props.ticket.via_customer_portal ? "Portal" : "Mail",
@@ -229,6 +330,7 @@ onUnmounted(() => {
   if (resolutionInterval) {
     clearInterval(resolutionInterval);
   }
+  stopEscalationClock();
   firstResponseInterval = null;
   resolutionInterval = null;
 });

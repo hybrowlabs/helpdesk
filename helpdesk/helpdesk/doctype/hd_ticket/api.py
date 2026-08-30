@@ -6,6 +6,7 @@ from frappe.utils.caching import redis_cache
 from pypika import Criterion, Order
 
 from helpdesk.consts import DEFAULT_TICKET_TEMPLATE
+from helpdesk.escalation import get_ticket_escalation_status
 from helpdesk.helpdesk.doctype.hd_form_script.hd_form_script import get_form_script
 from helpdesk.helpdesk.doctype.hd_ticket_template.api import get_fields_meta
 from helpdesk.helpdesk.doctype.hd_ticket_template.api import get_one as get_template
@@ -119,6 +120,8 @@ def get_one(name, is_customer_portal=False):
     template = ticket.template or DEFAULT_TICKET_TEMPLATE
     return {
         **ticket,
+        # Escalation timings are internal: agents only, never the customer portal.
+        "escalation": get_ticket_escalation_status(ticket) if _is_agent else None,
         "comments": get_comments(name),
         "communications": get_communications(name),
         "contact": contact,
