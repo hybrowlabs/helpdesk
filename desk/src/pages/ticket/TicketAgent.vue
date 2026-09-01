@@ -559,16 +559,6 @@ const isRaiser = computed(() => {
   return currentUserId.value === ticket.data.raised_by;
 });
 
-const isRaisedForCurrentUser = computed(() => {
-  if (!ticket.data || !currentUserId.value) return false;
-  // Check if ticket was raised for another employee and current user is that employee
-
-  if (ticket.data.custom_raise_for_employee) {
-    return ticket.data.raised_by === currentUserId.value;
-  }
-  return false;
-});
-
 const isAssignedAgent = () => {
   if (!ticket.data || !currentUserId.value) return false;
 
@@ -605,19 +595,8 @@ const canCloseTicket = computed(() => {
     return true;
   }
 
-  // User who raised the ticket can close if:
-  // 1. They raised it for themselves (no custom_raise_for_employee)
-  // 2. OR ticket is raised_by current user
+  // The user who raised the ticket can close it
   if (isRaiser.value) {
-    // If there's no custom_raise_for_employee, or it's empty, raiser can close
-    if (!ticket.data.custom_raise_for_employee) {
-      return true;
-    }
-  }
-
-  // If ticket was raised for someone else, check if current user is that person
-  // The raised_by field should be set to the employee's user_id
-  if (ticket.data.custom_raise_for_employee && ticket.data.raised_by === currentUserId.value) {
     return true;
   }
 
@@ -1241,7 +1220,6 @@ watch(
       console.log('sessionUser (from cookie):', sessionUser.value);
       console.log('currentUserId (computed):', currentUserId.value);
       console.log('Ticket raised_by:', val.raised_by);
-      console.log('Ticket custom_raise_for_employee:', val.custom_raise_for_employee);
       console.log('Ticket status:', val.status);
       console.log('isRaiser:', isRaiser.value);
       console.log('isAdmin (from store):', isAdmin.value);

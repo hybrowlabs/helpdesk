@@ -821,7 +821,6 @@ watch(
       console.log('sessionUser (from cookie):', sessionUser.value);
       console.log('currentUserId (computed):', currentUserId.value);
       console.log('Ticket raised_by:', val.raised_by);
-      console.log('Ticket custom_raise_for_employee:', val.custom_raise_for_employee);
       console.log('Ticket status:', val.status);
       console.log('isRaiser:', isRaiser.value);
       console.log('canCloseTicket:', canCloseTicket.value);

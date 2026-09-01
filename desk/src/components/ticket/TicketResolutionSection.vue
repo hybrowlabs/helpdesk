@@ -222,14 +222,6 @@ const canRejectResolution = computed(() => {
     return true;
   }
 
-  // Employee for whom ticket was raised can reject
-  if (props.ticket.custom_raise_for_employee) {
-    // The raised_by field should already be set to employee's user_id
-    if (currentUserId.value === props.ticket.raised_by) {
-      return true;
-    }
-  }
-
   return false;
 });
 
