@@ -36,8 +36,6 @@
     />
     <!-- ticket details -->
     <TicketAgentDetails :ticket="ticket" />
-    <!-- Raise For Others fields -->
-    <TicketRaiseForOthersFields :ticket="ticket" @update="update" />
     <!-- fields -->
     <TicketAgentFields :ticket="ticket" @update="update" />
     <TicketMergeModal
@@ -57,7 +55,6 @@ import LucideMerge from "~icons/lucide/merge";
 import TicketAgentContact from "./TicketAgentContact.vue";
 import TicketAgentDetails from "./TicketAgentDetails.vue";
 import TicketAgentFields from "./TicketAgentFields.vue";
-import TicketRaiseForOthersFields from "./TicketRaiseForOthersFields.vue";
 import TicketMergeModal from "./TicketMergeModal.vue";
 
 interface Props {
