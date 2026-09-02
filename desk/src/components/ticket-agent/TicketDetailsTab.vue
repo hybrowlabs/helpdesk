@@ -286,8 +286,25 @@ function openTicket(name: string) {
   window.open(url, "_blank");
 }
 
+// BRD FR-1.2: subcategories live *within* a main category, so the two Link
+// fields are scoped to opposite sides of the HD Category tree — Category offers
+// only parents, Sub Category only the children of the chosen parent. Without
+// this both dropdowns list every category, and a ticket can be filed under a
+// sub-category belonging to a different department.
+function getCategoryFilters(fieldname) {
+  if (fieldname === "custom_category") return { is_sub_category: 0 };
+  if (fieldname === "custom_sub_category")
+    return {
+      is_sub_category: 1,
+      // no parent chosen yet => match nothing rather than everything
+      parent_category: ticket.value.doc.custom_category || "__none__",
+    };
+  return undefined;
+}
+
 function getFieldInFormat(fieldTemplate, fieldMeta) {
   return {
+    filters: getCategoryFilters(fieldTemplate.fieldname),
     label: fieldMeta?.label || fieldTemplate.fieldname,
     value: ticket.value.doc[fieldTemplate.fieldname],
     fieldtype: fieldMeta?.fieldtype,

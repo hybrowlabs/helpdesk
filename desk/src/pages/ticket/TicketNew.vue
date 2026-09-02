@@ -192,6 +192,7 @@ const template = createResource({
   auto: true,
   onSuccess: (data) => {
     description.value = data.description_template || "";
+    appliedDescription = description.value;
     oldFields = window.structuredClone(data.fields || []);
     setupCustomizations(template, {
       doc: templateFields,
@@ -246,6 +247,52 @@ function handleOnFieldChange(e: any, fieldname: string, fieldtype: string) {
     fieldDependentFns.forEach((fn: Function) => {
       fn(e.value, fieldtype);
     });
+  }
+  if (fieldname === "custom_category" || fieldname === "custom_sub_category") {
+    applyCategoryDefaults();
+  }
+}
+
+// Each department opens its tickets the same way every time, so the category
+// carries the subject and the intake checklist it should start from. The text
+// lives on HD Category (see pc_helpdesk category_defaults) rather than here, so
+// it can be reworded without a deployment.
+//
+// What the agent typed is never overwritten: a field is replaced only while it
+// still holds a default we put there — switching category swaps one default for
+// another, but the moment someone edits it, it is theirs.
+let appliedSubject = "";
+let appliedDescription = "";
+
+async function applyCategoryDefaults() {
+  const category = templateFields["custom_category"];
+  const subCategory = templateFields["custom_sub_category"];
+
+  if (!category && !subCategory) return;
+
+  let defaults;
+  try {
+    defaults = await call(
+      "pc_helpdesk.customizations.api.category_defaults.get_category_defaults",
+      { category, sub_category: subCategory }
+    );
+  } catch (error) {
+    // A missing default is not worth interrupting ticket creation for.
+    return;
+  }
+  if (!defaults) return;
+
+  if (defaults.subject && (!subject.value || subject.value === appliedSubject)) {
+    subject.value = defaults.subject;
+    appliedSubject = defaults.subject;
+  }
+
+  if (
+    defaults.description &&
+    (!description.value || description.value === appliedDescription)
+  ) {
+    description.value = defaults.description;
+    appliedDescription = defaults.description;
   }
 }
 
