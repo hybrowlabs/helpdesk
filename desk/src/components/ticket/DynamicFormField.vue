@@ -5,7 +5,6 @@
       <span v-if="field.required" class="text-red-500">*</span>
     </label>
 
-    <!-- Link field: use helpdesk's Link picker driven by the target doctype -->
     <Link
       v-if="field.fieldtype === 'Link'"
       class="form-control"
@@ -16,7 +15,6 @@
       @change="(v) => emitValue(v)"
     />
 
-    <!-- Select: native select rendered from newline-separated options -->
     <FormControl
       v-else-if="field.fieldtype === 'Select'"
       type="select"
@@ -27,7 +25,6 @@
       @update:model-value="(v) => emitValue(v)"
     />
 
-    <!-- Checkbox -->
     <FormControl
       v-else-if="field.fieldtype === 'Checkbox'"
       type="checkbox"
@@ -36,7 +33,6 @@
       @update:model-value="(v) => emitValue(v ? 1 : 0)"
     />
 
-    <!-- Multi-line text -->
     <FormControl
       v-else-if="field.fieldtype === 'TextArea'"
       type="textarea"
@@ -60,7 +56,6 @@
       @update:model-value="(v) => emitValue(v ?? '')"
     />
 
-    <!-- Single-line inputs: Text / Email / Phone / Number -->
     <FormControl
       v-else
       :type="inputType"

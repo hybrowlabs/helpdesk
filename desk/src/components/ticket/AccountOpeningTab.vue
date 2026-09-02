@@ -60,7 +60,6 @@
     </div>
 
     <div class="flex-1 overflow-y-auto px-6 py-4">
-      <!-- Loading -->
       <div
         v-if="loading"
         class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2"
@@ -73,7 +72,6 @@
         </div>
       </div>
 
-      <!-- Error -->
       <div
         v-else-if="error"
         class="flex flex-col items-center justify-center gap-2 py-16 text-center"

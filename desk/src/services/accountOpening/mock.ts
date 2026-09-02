@@ -37,7 +37,6 @@ type ApplicationFixture = Omit<
   "age" | "videoVerificationRequired"
 >;
 
-/** Which branch the mock should exercise. */
 export type MockScenario = "success" | "empty" | "error" | "slow";
 
 let scenario: MockScenario = "success";
@@ -240,7 +239,6 @@ const FIXTURES: readonly ApplicationFixture[] = [
   },
 ];
 
-/** Reset session state between demos or tests. */
 export function resetMockStore(): void {
   scenario = "success";
 }
@@ -256,21 +254,6 @@ function applicationForTicket(ticketId: string): AccountOpeningApplication {
   };
 }
 
-/**
- * Mocks the vendor application and nothing else.
- *
- * The `application` block is the only part of this feature with no endpoint
- * behind it — see ACCOUNT_OPENING_API_CONTRACT.md §6. Everything else is
- * Frappe-side data served by `pc_helpdesk.customizations.api.account_opening`,
- * which exists on every site: the case, the verification block stored on it, and
- * the workflow the ticket header drives.
- *
- * Those are therefore delegated to the live adapter rather than faked. A
- * fabricated case name would be worse than useless — the header resolves the
- * ticket to a case and asks the *real* workflow endpoint about it, so an
- * invented `AO9720` comes back as "Workflow unavailable", and a verification
- * saved into an in-memory Map would be reported as saved and then silently lost.
- */
 /**
  * Overlay the mock application the same way the live path does.
  *

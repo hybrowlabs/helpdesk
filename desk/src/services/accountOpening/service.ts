@@ -40,7 +40,7 @@ export function getAccountOpeningService(): AccountOpeningService {
   return instance;
 }
 
-/** Override the adapter — for tests, Storybook, or a runtime demo toggle. */
+/** Override the adapter — for tests or a runtime demo toggle. */
 export function setAccountOpeningService(
   service: AccountOpeningService | null
 ): void {

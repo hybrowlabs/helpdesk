@@ -159,7 +159,6 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
       form[fieldname] = next;
     }
 
-    // Clear the field's error as soon as the agent edits it.
     if (fieldErrors.value[fieldname]) {
       const { [fieldname]: _cleared, ...rest } = fieldErrors.value;
       fieldErrors.value = rest;
@@ -185,10 +184,6 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
     record.value?.application ? toDetailRows(record.value.application) : []
   );
 
-  // The compliance flag is decided by the server from the client's date of
-  // birth; the form only reflects it. The case is authoritative — it holds the
-  // date of birth the agent entered — with the vendor application as the
-  // fallback for a case that has not recorded one.
   const videoVerificationRequired = computed(() => {
     // The case's flag is what the workflow actually gates on
     // (`doc.video_verification_required == 1`), so it comes first — otherwise the

@@ -205,7 +205,6 @@ export function getVerificationFields(
   ];
 }
 
-/** A blank, valid verification block — the starting point for a fresh record. */
 export function emptyVerification(): VerificationDetails {
   return {
     panNumber: "",
