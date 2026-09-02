@@ -46,6 +46,11 @@
           </div>
         </div>
         <!-- Status -->
+        <TicketWorkflowActions
+          v-if="isAccountOpeningTicket && accountOpeningCaseName"
+          :ticket-id="accountOpeningCaseName"
+          doctype="Account Opening"
+        />
         <Dropdown :options="statusDropdown" placement="right">
           <template #default="{ open }">
             <Button :label="ticket.doc.status" ref="statusRef">
@@ -107,6 +112,8 @@ import {
   Dropdown,
   toast,
 } from "frappe-ui";
+import TicketWorkflowActions from "@/components/ticket/TicketWorkflowActions.vue";
+import { useAccountOpeningCase } from "@/services/accountOpening";
 import {
   computed,
   ComputedRef,
@@ -356,6 +363,17 @@ onMounted(() => {
     statusRef.value?.$el?.click();
   });
 });
+
+// FR-10: an Account Opening ticket carries a case (AO0001…) that owns the
+// workflow. The Actions menu drives the case, so the header resolves the case
+// name; every other ticket renders nothing extra.
+const isAccountOpeningTicket = computed(
+  () => ticket?.value?.doc?.custom_category === "Account Opening"
+);
+const { caseName: accountOpeningCaseName } = useAccountOpeningCase(
+  () => String(ticket?.value?.doc?.name ?? ""),
+  () => isAccountOpeningTicket.value
+);
 </script>
 
 <style>

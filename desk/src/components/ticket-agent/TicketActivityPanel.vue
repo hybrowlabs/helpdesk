@@ -6,8 +6,13 @@
     class="[&_[role='tab']]:px-0 [&_[role='tablist']]:px-5 [&_[role='tablist']]:gap-7.5 [&_[role='tablist']]:flex-shrink-0 [&_[role='tabpanel'][data-state='active']]:flex-1"
   >
     <template #tab-panel="{ tab }">
+      <AccountOpeningTab
+        v-if="tab.name === 'account_opening'"
+        :ticket-id="String(ticket.doc?.name)"
+        class="overflow-y-auto px-5 py-4"
+      />
       <TicketAgentActivities
-        v-if="Boolean(activities.data)"
+        v-else-if="Boolean(activities.data)"
         ref="ticketAgentActivitiesRef"
         :activities="filterActivities(tab.name as TicketTab)"
         :title="tab.label"
@@ -54,6 +59,7 @@ import {
   CommentIcon,
   EmailIcon,
   PhoneIcon,
+  DetailsIcon,
 } from "@/components/icons";
 import { useActiveTabManager } from "@/composables/useActiveTabManager";
 import { useTelephonyStore } from "@/stores/telephony";
@@ -68,6 +74,7 @@ import { Button, Tabs } from "frappe-ui";
 import { storeToRefs } from "pinia";
 import { computed, ComputedRef, inject, ref } from "vue";
 import { TicketAgentActivities } from "../ticket";
+import AccountOpeningTab from "../ticket/AccountOpeningTab.vue";
 
 const ticket = inject(TicketSymbol);
 const activities = inject(ActivitiesSymbol);
@@ -99,6 +106,14 @@ const tabs: ComputedRef<TabObject[]> = computed(() => {
       icon: CommentIcon,
     },
   ];
+
+  if (ticket?.value?.doc?.custom_category === "Account Opening") {
+    _tabs.push({
+      name: "account_opening",
+      label: "Data",
+      icon: DetailsIcon,
+    });
+  }
 
   if (isCallingEnabled.value) {
     _tabs.push({
