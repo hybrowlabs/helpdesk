@@ -19,6 +19,7 @@ from pypika.functions import Count
 from pypika.queries import Query
 from pypika.terms import Criterion
 
+from helpdesk.api.category import CATEGORY_FIELDS, can_change_category
 from helpdesk.consts import DEFAULT_TICKET_PRIORITY, DEFAULT_TICKET_TYPE
 from helpdesk.helpdesk.doctype.hd_ticket_activity.hd_ticket_activity import (
     log_ticket_activity,
@@ -54,7 +55,9 @@ class HDTicket(Document):
 
     def before_validate(self):
         self.check_update_perms()
+        self.check_category_update_perms()
         self.set_ticket_type()
+        self.set_default_category()
         self.set_raised_by()
         self.set_priority()
         self.set_first_responded_on()
@@ -68,6 +71,7 @@ class HDTicket(Document):
     def validate(self):
         self.validate_feedback()
         self.validate_ticket_type()
+        self.validate_category_hierarchy()
 
     def before_save(self):
         self.apply_sla()
@@ -350,6 +354,37 @@ class HDTicket(Document):
         ticket_type = settings.default_ticket_type or DEFAULT_TICKET_TYPE
         self.ticket_type = ticket_type
 
+    def set_default_category(self):
+        """
+        Fall back to the category pair configured in HD Settings.
+
+        Tickets that come in over e-mail arrive without a category, and both the
+        SLA and the team are picked from it, so the default has to be in place
+        before `set_sla` runs. Only tickets with no category at all are touched:
+        a ticket that already names a category keeps its own sub-category, since
+        the default sub-category belongs to the default category.
+        """
+        if not self.is_new() or not self.meta.has_field("custom_category"):
+            return
+        if self.get("custom_category"):
+            return
+        # The HD Settings fields ship as custom fields, so they can be missing
+        # on a site that has not migrated yet -- `get_single_value` throws for
+        # an unknown fieldname.
+        if not frappe.get_meta("HD Settings").has_field("custom_default_category"):
+            return
+
+        default_category = frappe.db.get_single_value(
+            "HD Settings", "custom_default_category"
+        )
+        if not default_category:
+            return
+
+        self.custom_category = default_category
+        self.custom_sub_category = frappe.db.get_single_value(
+            "HD Settings", "custom_default_sub_category"
+        )
+
     def set_raised_by(self):
         self.raised_by = self.raised_by or frappe.session.user
 
@@ -433,6 +468,69 @@ class HDTicket(Document):
         if is_closed or is_rated:
             text = _("Closed or rated tickets cannot be updated by non-agents")
             frappe.throw(text, frappe.PermissionError)
+
+    def check_category_update_perms(self):
+        """
+        Restrict who may re-categorise a ticket.
+
+        Only System Managers and Agent Managers may change the category or the
+        sub-category. E-mail tickets are the exception: they land uncategorised
+        (or on the HD Settings default), so the agent they are first assigned to
+        may triage them.
+        """
+        if self.is_new() or self.flags.ignore_permissions:
+            return
+        if not self.meta.has_field("custom_category"):
+            return
+
+        changed = [
+            fieldname
+            for fieldname in CATEGORY_FIELDS
+            if self.has_value_changed(fieldname)
+        ]
+        if not changed or can_change_category(self):
+            return
+
+        frappe.throw(
+            _(
+                "Only Agent Managers and System Managers can change the category"
+                " of this ticket. Tickets created from an e-mail can also be"
+                " re-categorised by the agent they were first assigned to."
+            ),
+            frappe.PermissionError,
+            title=_("Not Permitted"),
+        )
+
+    def validate_category_hierarchy(self):
+        """
+        Keep the sub-category under the category it belongs to.
+
+        A sub-category that was just picked has to fit the category. A category
+        that was just changed instead leaves the old sub-category orphaned --
+        drop it, since the two are set one field at a time from the agent UI.
+        Tickets that carry a mismatched pair from before this rule are left
+        alone until one of the two is touched.
+        """
+        if not self.meta.has_field("custom_category"):
+            return
+        if not self.get("custom_sub_category"):
+            return
+
+        parent_category = frappe.db.get_value(
+            "HD Category", self.custom_sub_category, "parent_category"
+        )
+        if parent_category == self.get("custom_category"):
+            return
+
+        if self.has_value_changed("custom_sub_category"):
+            frappe.throw(
+                _("Sub category {0} does not belong to category {1}").format(
+                    frappe.bold(self.custom_sub_category),
+                    frappe.bold(self.get("custom_category") or _("(none)")),
+                )
+            )
+        elif self.has_value_changed("custom_category"):
+            self.custom_sub_category = None
 
     def handle_ticket_activity_update(self):
         """

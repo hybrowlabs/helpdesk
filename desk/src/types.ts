@@ -125,6 +125,16 @@ export interface Ticket {
   _customActions: Function[];
   is_merged?: boolean;
   escalation?: TicketEscalation;
+  custom_category?: string;
+  custom_sub_category?: string;
+  // Whether the current user may change the two fields above
+  can_change_category?: boolean;
+  custom_rasied_for?: string;
+  custom_raised_for?: string;
+  custom_for_myself?: 0 | 1;
+  custom_for_others?: 0 | 1;
+  custom_raise_for_employee?: string;
+  custom_raise_for_employee_name?: string;
 }
 
 export interface DocField {

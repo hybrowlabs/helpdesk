@@ -291,3 +291,86 @@ def search_sub_categories(category,txt="", limit=10):
     except Exception as e:
         frappe.log_error(f"Error searching categories: {str(e)}")
         return []
+
+
+# --- Category edit rights on a ticket ---------------------------------------
+#
+# Who may change `custom_category` / `custom_sub_category` on an existing
+# ticket:
+#   * System Managers and Agent Managers, on any ticket.
+#   * The agent a ticket was FIRST assigned to, but only on tickets that came
+#     in over e-mail -- those arrive uncategorised (or on the HD Settings
+#     default) and need a human to triage them.
+# Nobody else. `HDTicket.check_category_update_perms` enforces this on every
+# write path; the desk form and the agent UI call `can_change_ticket_category`
+# so they can show the fields as read-only instead of failing on save.
+
+CATEGORY_MANAGER_ROLES = {"System Manager", "Agent Manager"}
+CATEGORY_FIELDS = ("custom_category", "custom_sub_category")
+
+
+def is_email_ticket(ticket) -> bool:
+    """Whether `ticket` came in over e-mail rather than through the portal.
+
+    This is the same split the agent sidebar already shows as the ticket's
+    channel -- `via_customer_portal ? "Portal" : "Mail"`. Tickets raised from
+    the portal or the agent UI go through `hd_ticket.api.new`, which stamps
+    `via_customer_portal`; a ticket the mail puller created never does.
+
+    Deliberately *not* keyed on the Email Account of the ticket's first
+    Communication: `HDTicket.create_communication_via_contact` logs a new
+    ticket's description as "Received" with no Email Account of its own, so a
+    mail-raised ticket is indistinguishable that way once it has been copied
+    between sites. The channel the agent is shown is the rule they can predict.
+    """
+    return not ticket.get("via_customer_portal")
+
+
+def get_first_assignee(ticket: str) -> str | None:
+    """The user a ticket was first assigned to.
+
+    Read from ToDo rather than `_assign`: un-assigning cancels the ToDo instead
+    of deleting it, so the first assignment survives every later reassignment.
+    """
+    todo = frappe.get_all(
+        "ToDo",
+        filters={"reference_type": "HD Ticket", "reference_name": ticket},
+        fields=["allocated_to"],
+        order_by="creation asc, name asc",
+        limit=1,
+    )
+    return todo[0].allocated_to if todo else None
+
+
+def can_change_category(ticket, user=None) -> bool:
+    """Whether `user` may change the category fields of `ticket`.
+
+    :param ticket: Ticket document (or dict with `name` and
+        `via_customer_portal`), or a ticket name
+    :param user: User to check against, defaults to current user
+    """
+    user = user or frappe.session.user
+    if user == "Administrator":
+        return True
+    if CATEGORY_MANAGER_ROLES & set(frappe.get_roles(user)):
+        return True
+
+    if isinstance(ticket, str):
+        ticket = frappe.db.get_value(
+            "HD Ticket", ticket, ["name", "via_customer_portal"], as_dict=True
+        )
+        if not ticket:
+            return False
+
+    if not is_email_ticket(ticket):
+        return False
+
+    return user == get_first_assignee(ticket.name)
+
+
+@frappe.whitelist()
+def can_change_ticket_category(ticket: str) -> bool:
+    """Client-facing wrapper around `can_change_category`."""
+    if not frappe.has_permission("HD Ticket", "read", doc=ticket):
+        return False
+    return can_change_category(ticket)

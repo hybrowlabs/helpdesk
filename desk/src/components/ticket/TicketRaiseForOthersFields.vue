@@ -2,145 +2,65 @@
   <div class="flex flex-col gap-3 border-b px-6 py-3">
     <div class="flex flex-col gap-2">
       <span class="block text-sm font-medium text-gray-700">Raised For</span>
-      <FormControl
-        v-model="raisedFor"
-        type="select"
-        :options="raisedForOptions"
-        size="sm"
-        @change="handleRaisedForChange"
-      />
+      <span class="text-base text-ink-gray-8">{{ raisedFor }}</span>
     </div>
     <div v-if="raisedFor === 'Others'" class="flex flex-col gap-2">
       <span class="block text-sm font-medium text-gray-700">Employee</span>
-          <EmployeeLink
-            :model-value="ticket.custom_raise_for_employee"
-            @update:model-value="handleEmployeeChange"
-          />
+      <span class="text-base text-ink-gray-8">{{ employeeLabel }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Ticket } from "@/types";
-import { FormControl } from "frappe-ui";
-import { computed, ref, watch } from "vue";
 import { call } from "frappe-ui";
-import EmployeeLink from "./EmployeeLink.vue";
+import { computed, ref, watch } from "vue";
 
 interface Props {
   ticket: Ticket;
 }
 
 const props = defineProps<Props>();
-const emit = defineEmits(["update"]);
 
-const raisedForOptions = [
-  { label: "Myself", value: "Myself" },
-  { label: "Others", value: "Others" },
-];
-
-const raisedFor = computed({
-  get: () => {
-    if (props.ticket.custom_for_others) return "Others";
-    if (props.ticket.custom_for_myself) return "Myself";
-    // Check both field name variations (backend has typo: custom_rasied_for)
-    const value = props.ticket.custom_rasied_for || props.ticket.custom_raised_for || "Myself";
-    // Safety check: never return "Other"
-    if (value === "Other") {
-      console.warn("[TICKET DEBUG] Warning: 'Other' detected in raisedFor getter, returning 'Others'");
-      return "Others";
-    }
-    return value;
-  },
-  set: (val) => {
-    // This will be handled by handleRaisedForChange
-  },
+// Who the ticket was raised for is decided when the ticket is created and is
+// only shown here -- it is never edited from the agent sidebar.
+const raisedFor = computed(() => {
+  if (props.ticket.custom_for_others) return "Others";
+  if (props.ticket.custom_for_myself) return "Myself";
+  // The backend fieldname carries a typo: custom_rasied_for
+  const value =
+    props.ticket.custom_rasied_for || props.ticket.custom_raised_for || "Myself";
+  return value === "Other" ? "Others" : value;
 });
 
-async function ensureEmployeeNameDisplay(employeeId: string) {
-  if (!employeeId) return;
-  
-  try {
-    const employeeRes = await call("frappe.client.get", {
-      doctype: "Employee",
-      name: employeeId,
-    });
-    
-    if (employeeRes?.message) {
-      const employee = employeeRes.message;
-      const employeeName = employee.employee_name || employee.name;
-      
-      const frappeWindow = window as any;
-      if (frappeWindow.frappe?.utils?.add_link_title) {
-        frappeWindow.frappe.utils.add_link_title("Employee", employeeId, employeeName);
-      } else if (frappeWindow.frappe?.link_title_cache) {
-        if (!frappeWindow.frappe.link_title_cache["Employee"]) {
-          frappeWindow.frappe.link_title_cache["Employee"] = {};
-        }
-        frappeWindow.frappe.link_title_cache["Employee"][employeeId] = employeeName;
-      }
-    }
-  } catch (error) {
-    console.warn("Error loading employee name:", error);
-  }
-}
+// `custom_raise_for_employee_name` is fetched from the Employee on save, so it
+// is empty on tickets raised before that field existed -- look the name up for
+// those instead of showing a bare employee id.
+const fetchedEmployeeName = ref("");
 
-function handleRaisedForChange(value: string) {
-  console.log("[TICKET DEBUG] handleRaisedForChange called, value:", value);
-  
-  // Safety check: ensure value is never "Other"
-  if (value === "Other") {
-    console.warn("[TICKET DEBUG] Warning: 'Other' detected in handleRaisedForChange, converting to 'Others'");
-    value = "Others";
-  }
-  
-  const updates: any = {
-    custom_rasied_for: value, // Use correct field name with typo to match backend
-    custom_for_myself: value === "Myself" ? 1 : 0,
-    custom_for_others: value === "Others" ? 1 : 0,
-  };
-  
-  if (value === "Myself") {
-    updates.custom_raise_for_employee = "";
-  }
-  
-  console.log("[TICKET DEBUG] Emitting updates:", updates);
-  emit("update", { field: "custom_rasied_for", value }); // Use correct field name
-  emit("update", { field: "custom_for_myself", value: updates.custom_for_myself });
-  emit("update", { field: "custom_for_others", value: updates.custom_for_others });
-  
-  if (value === "Myself") {
-    emit("update", { field: "custom_raise_for_employee", value: "" });
-  }
-}
+const employeeLabel = computed(
+  () =>
+    props.ticket.custom_raise_for_employee_name ||
+    fetchedEmployeeName.value ||
+    props.ticket.custom_raise_for_employee ||
+    "-"
+);
 
-async function handleEmployeeChange(value: string) {
-  console.log("[TICKET DEBUG] handleEmployeeChange called, value:", value);
-  emit("update", { field: "custom_raise_for_employee", value });
-  console.log("[TICKET DEBUG] Emitted update for custom_raise_for_employee:", value);
-  if (value) {
-    await ensureEmployeeNameDisplay(value);
-  }
-}
-
-// Ensure employee name is displayed on load
 watch(
   () => props.ticket.custom_raise_for_employee,
-  (newValue) => {
-    if (newValue) {
-      ensureEmployeeNameDisplay(newValue);
+  async (employeeId) => {
+    fetchedEmployeeName.value = "";
+    if (!employeeId || props.ticket.custom_raise_for_employee_name) return;
+    try {
+      const employee = await call("frappe.client.get", {
+        doctype: "Employee",
+        name: employeeId,
+      });
+      fetchedEmployeeName.value = employee?.employee_name || "";
+    } catch (error) {
+      console.warn("Error loading employee name:", error);
     }
   },
   { immediate: true }
 );
 </script>
-
-<style scoped>
-:deep(.form-control input:not([type="checkbox"])),
-:deep(.form-control select),
-:deep(.form-control button) {
-  border-color: transparent;
-  background: white;
-}
-</style>
-

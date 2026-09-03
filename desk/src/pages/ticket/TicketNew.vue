@@ -63,7 +63,7 @@
             Subcategory
           </span>
           <FormControl
-            v-model="custom_subcategory"
+            v-model="custom_sub_category"
             type="select"
             :options="subcategoriesOptions"
             placeholder="Select a subcategory"
@@ -191,7 +191,7 @@ const description = ref("");
 const attachments = ref([]);
 // templateFields removed - no longer needed
 const custom_category = ref("");
-const custom_subcategory = ref("");
+const custom_sub_category = ref("");
 const categoriesOptions = ref([]);
 const subcategoriesOptions = ref([]);
 // Raise For Others fields
@@ -277,7 +277,7 @@ const ticket = createResource({
       subject: subject.value,
       template: props.templateId,
       custom_category: custom_category.value,
-      custom_subcategory: custom_subcategory.value,
+      custom_sub_category: custom_sub_category.value,
       custom_rasied_for: raisedForValue,
       custom_raise_for_employee: custom_raise_for_employee.value,
       custom_for_myself: raisedForValue === "Myself" ? 1 : 0,
@@ -395,7 +395,7 @@ async function onEmployeeChange(employeeId: string) {
 }
 
 async function onCategoryChange() {
-  custom_subcategory.value = "";
+  custom_sub_category.value = "";
   subcategoriesOptions.value = [];
   
   if (custom_category.value) {

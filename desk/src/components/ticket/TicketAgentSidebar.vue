@@ -36,8 +36,10 @@
     />
     <!-- ticket details -->
     <TicketAgentDetails :ticket="ticket" />
-    <!-- Raise For Others fields -->
-    <TicketRaiseForOthersFields :ticket="ticket" @update="update" />
+    <!-- Raise For Others fields (read only) -->
+    <TicketRaiseForOthersFields :ticket="ticket" />
+    <!-- category / sub category -->
+    <TicketCategoryFields :ticket="ticket" @update="update" />
     <!-- fields -->
     <TicketAgentFields :ticket="ticket" @update="update" />
     <TicketMergeModal
@@ -58,6 +60,7 @@ import TicketAgentContact from "./TicketAgentContact.vue";
 import TicketAgentDetails from "./TicketAgentDetails.vue";
 import TicketAgentFields from "./TicketAgentFields.vue";
 import TicketRaiseForOthersFields from "./TicketRaiseForOthersFields.vue";
+import TicketCategoryFields from "./TicketCategoryFields.vue";
 import TicketMergeModal from "./TicketMergeModal.vue";
 
 interface Props {

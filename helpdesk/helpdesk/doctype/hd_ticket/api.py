@@ -5,6 +5,7 @@ from frappe.utils import get_user_info_for_avatar, now_datetime
 from frappe.utils.caching import redis_cache
 from pypika import Criterion, Order
 
+from helpdesk.api.category import CATEGORY_FIELDS, can_change_category
 from helpdesk.consts import DEFAULT_TICKET_TEMPLATE
 from helpdesk.escalation import get_ticket_escalation_status
 from helpdesk.helpdesk.doctype.hd_form_script.hd_form_script import get_form_script
@@ -133,6 +134,8 @@ def get_one(name, is_customer_portal=False):
             "HD Ticket", is_customer_portal=is_customer_portal
         ),
         "fields": get_meta(template),
+        # Drives the read-only state of the category fields in the sidebar
+        "can_change_category": can_change_category(ticket),
     }
 
 
@@ -151,6 +154,8 @@ def get_meta(template: str):
     meta_fields = [f for f in meta_fields if f["fieldname"] not in default_fields]
 
     fields.extend(meta_fields)
+    # The category fields have a section of their own in the sidebar
+    fields = [f for f in fields if f["fieldname"] not in CATEGORY_FIELDS]
     return fields
 
 
