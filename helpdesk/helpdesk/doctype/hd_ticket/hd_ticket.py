@@ -360,13 +360,21 @@ class HDTicket(Document):
 
         Tickets that come in over e-mail arrive without a category, and both the
         SLA and the team are picked from it, so the default has to be in place
-        before `set_sla` runs. Only tickets with no category at all are touched:
-        a ticket that already names a category keeps its own sub-category, since
-        the default sub-category belongs to the default category.
+        before `set_sla` runs.
+
+        Two cases are filled in, both only on a new ticket:
+          * no category at all -> the default category *and* its sub category;
+          * a category that is already the default one but no sub category
+            (the portal and the agent form both leave the sub category empty
+            when nobody picks one) -> the default sub category.
+
+        A ticket that names some *other* category is left alone: the default
+        sub category hangs off the default category, and `validate` would throw
+        on the mismatched pair.
         """
         if not self.is_new() or not self.meta.has_field("custom_category"):
             return
-        if self.get("custom_category"):
+        if self.get("custom_category") and self.get("custom_sub_category"):
             return
         # The HD Settings fields ship as custom fields, so they can be missing
         # on a site that has not migrated yet -- `get_single_value` throws for
@@ -378,6 +386,11 @@ class HDTicket(Document):
             "HD Settings", "custom_default_category"
         )
         if not default_category:
+            return
+
+        if self.get("custom_category") and self.custom_category != default_category:
+            # Their own category, and the default sub category does not belong
+            # to it.
             return
 
         self.custom_category = default_category

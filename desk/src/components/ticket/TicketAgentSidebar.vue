@@ -39,7 +39,10 @@
     <!-- Raise For Others fields (read only) -->
     <TicketRaiseForOthersFields :ticket="ticket" />
     <!-- category / sub category -->
-    <TicketCategoryFields :ticket="ticket" @update="update" />
+    <TicketCategoryFields
+      :ticket="ticket"
+      @update-fields="(values) => emit('update-fields', values)"
+    />
     <!-- fields -->
     <TicketAgentFields :ticket="ticket" @update="update" />
     <TicketMergeModal
@@ -69,7 +72,12 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const emit = defineEmits(["update", "email:open", "reload"]);
+const emit = defineEmits([
+  "update",
+  "update-fields",
+  "email:open",
+  "reload",
+]);
 
 function update(val = null) {
   if (val.value && typeof val.value === "object") {

@@ -1,11 +1,11 @@
 <template>
   <div class="flex flex-col gap-3 border-b px-6 py-3">
     <div class="flex flex-col gap-2">
-      <span class="block text-sm font-medium text-gray-700">Raised For</span>
+      <span class="block text-sm text-ink-gray-5">Raised For</span>
       <span class="text-base text-ink-gray-8">{{ raisedFor }}</span>
     </div>
     <div v-if="raisedFor === 'Others'" class="flex flex-col gap-2">
-      <span class="block text-sm font-medium text-gray-700">Employee</span>
+      <span class="block text-sm text-ink-gray-5">Employee</span>
       <span class="text-base text-ink-gray-8">{{ employeeLabel }}</span>
     </div>
   </div>
