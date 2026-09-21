@@ -1,42 +1,26 @@
 import frappe
 
 
-def after_insert(doc, method=None):
+def get_ticket_todo_description(ticket) -> str:
+    """Task line shown for an HD Ticket assignment, e.g. "Ticket #4021 - Payslip Access"."""
+    subject = frappe.db.get_value("HD Ticket", ticket, "subject")
+    return f"Ticket #{ticket} - {subject}" if subject else f"Ticket #{ticket}"
+
+
+def before_insert(doc, method=None):
     """
-    Update TODO description for HD Ticket assignments
+    Describe every HD Ticket assignment the same way, whichever code path
+    created it (assign_to, assignment rules, SLA / hierarchy routing,
+    escalation). Set before insert so the assignment notification and the
+    todo route (computed on before_save from custom_todo_type) see the values.
     """
-    # Only process TODOs related to HD Tickets
-    if not doc.reference_type or doc.reference_type != "HD Ticket":
+    if doc.reference_type != "HD Ticket" or not doc.reference_name:
         return
 
-    if not doc.reference_name:
-        return
+    doc.description = get_ticket_todo_description(doc.reference_name)
 
-    # Build a rich description from the ticket's subject + description
-    try:
-        ticket_data = frappe.db.get_value(
-            "HD Ticket", doc.reference_name, ["subject", "description"], as_dict=True
-        )
-        if ticket_data:
-            subj = ticket_data.get("subject") or ""
-            desc = (ticket_data.get("description") or "")[:200]
-            new_description = f"Subject: {subj} | Description: {desc}"
-        else:
-            new_description = f"Ticket {doc.reference_name} has been assigned to you"
+    if not doc.get("type"):
+        doc.type = "Help Desk"
 
-        # Only update if the current description is generic/default
-        if doc.description and any(keyword in doc.description.lower() for keyword in ["automatic", "assignment", "assigned"]):
-            frappe.db.set_value("ToDo", doc.name, "description", new_description, update_modified=False)
-        elif not doc.description:
-            frappe.db.set_value("ToDo", doc.name, "description", new_description, update_modified=False)
-
-        # Ensure type is set
-        if not doc.type:
-            frappe.db.set_value("ToDo", doc.name, "type", "Help Desk", update_modified=False)
-
-        # Ensure custom_todo_type is set
-        if not doc.custom_todo_type:
-            frappe.db.set_value("ToDo", doc.name, "custom_todo_type", "Helpdesk", update_modified=False)
-
-    except Exception as e:
-        frappe.log_error(f"Error updating TODO description for ticket assignment: {str(e)}")
+    if not doc.get("custom_todo_type"):
+        doc.custom_todo_type = "Helpdesk"
