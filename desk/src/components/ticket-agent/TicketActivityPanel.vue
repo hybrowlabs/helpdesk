@@ -10,6 +10,7 @@
         v-if="tab.name === 'account_opening'"
         :ticket-id="String(ticket.doc?.name)"
         class="overflow-y-auto px-5 py-4"
+        @updated="emit('caseUpdated')"
       />
       <TicketAgentActivities
         v-else-if="Boolean(activities.data)"
@@ -75,6 +76,11 @@ import { storeToRefs } from "pinia";
 import { computed, ComputedRef, inject, ref } from "vue";
 import { TicketAgentActivities } from "../ticket";
 import AccountOpeningTab from "../ticket/AccountOpeningTab.vue";
+
+// Saving the Account Opening tab changes the fields the case's workflow
+// transitions are gated on. The Actions menu lives in the header, a sibling of
+// this panel, so the signal goes up to TicketAgent to be handed across.
+const emit = defineEmits<{ (e: "caseUpdated"): void }>();
 
 const ticket = inject(TicketSymbol);
 const activities = inject(ActivitiesSymbol);

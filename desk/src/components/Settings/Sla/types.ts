@@ -11,5 +11,6 @@ export interface SlaValidationErrors {
   end_date: string;
   support_and_resolution: string;
   condition: string;
+  escalation: string;
   [key: string]: string;
 }

@@ -127,6 +127,11 @@ const portalRoutes = [
     component: () => import("@/pages/dashboard/Dashboard.vue"),
   },
   {
+    path: "/reports",
+    name: "Reports",
+    component: () => import("@/pages/reports/Reports.vue"),
+  },
+  {
     path: "/call-logs",
     name: "CallLogs",
     component: () => import("@/pages/call-logs/CallLogs.vue"),

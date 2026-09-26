@@ -2,6 +2,7 @@ import LucideBookOpen from "~icons/lucide/book-open";
 import LucideContact2 from "~icons/lucide/contact-2";
 import LucideTicket from "~icons/lucide/ticket";
 import LucideLayoutDashboard from "~icons/lucide/layout-dashboard";
+import LucideBarChart3 from "~icons/lucide/bar-chart-3";
 import { OrganizationsIcon } from "../icons";
 import PhoneIcon from "../icons/PhoneIcon.vue";
 import LucideHome from "~icons/lucide/home";
@@ -42,6 +43,11 @@ export const agentPortalSidebarOptions = [
     label: __("Call Logs"),
     icon: PhoneIcon,
     to: "CallLogs",
+  },
+  {
+    label: __("Reports"),
+    icon: LucideBarChart3,
+    to: "Reports",
   },
 ];
 

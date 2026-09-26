@@ -5,12 +5,9 @@
  * backend. Consumers call `getAccountOpeningService()` and never reference a
  * concrete adapter.
  *
- * Switching to the real API:
- *   1. Ship the `pc_helpdesk` endpoints (see
- *      `pc_helpdesk/customizations/api/account_opening.py`).
- *   2. Set `VITE_ACCOUNT_OPENING_SOURCE=api` in the desk build environment,
- *      or flip `DEFAULT_SOURCE` below.
- * No component, type, or presenter change is required.
+ * The live provider is the default. `VITE_ACCOUNT_OPENING_SOURCE=mock` at build
+ * time swaps in the fixture adapter, which exists for working offline and for
+ * exercising the empty and error branches — it is not a product mode.
  *
  * Kept separate from `index.ts` so the composable can import the resolver
  * without cycling through the barrel.
@@ -21,7 +18,7 @@ import type { AccountOpeningService } from "./types";
 
 export type AccountOpeningSource = "mock" | "api";
 
-const DEFAULT_SOURCE: AccountOpeningSource = "mock";
+const DEFAULT_SOURCE: AccountOpeningSource = "api";
 
 function configuredSource(): AccountOpeningSource {
   const fromEnv = import.meta.env?.VITE_ACCOUNT_OPENING_SOURCE;

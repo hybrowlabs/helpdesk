@@ -2,7 +2,6 @@ export { t } from "./i18n";
 
 export {
   getAccountOpeningService,
-  isUsingMockData,
   setAccountOpeningService,
   type AccountOpeningSource,
 } from "./service";

@@ -10,7 +10,7 @@ import {
   toDetailRows,
   validateVerification,
 } from "./presenter";
-import { getAccountOpeningService, isUsingMockData } from "./service";
+import { getAccountOpeningService } from "./service";
 import {
   AccountOpeningError,
   type AccountOpeningRecord,
@@ -237,7 +237,6 @@ export function useAccountOpening(ticketId: MaybeRefOrGetter<string | number>) {
     error,
     saveError,
     isEmpty,
-    isMock: isUsingMockData(),
     detailRows,
     form,
     fields,

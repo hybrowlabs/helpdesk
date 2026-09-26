@@ -48,6 +48,7 @@
         <!-- Status -->
         <TicketWorkflowActions
           v-if="isAccountOpeningTicket && accountOpeningCaseName"
+          ref="workflowActionsRef"
           :ticket-id="accountOpeningCaseName"
           doctype="Account Opening"
         />
@@ -374,6 +375,19 @@ const { caseName: accountOpeningCaseName } = useAccountOpeningCase(
   () => String(ticket?.value?.doc?.name ?? ""),
   () => isAccountOpeningTicket.value
 );
+
+const workflowActionsRef = useTemplateRef<
+  InstanceType<typeof TicketWorkflowActions>
+>("workflowActionsRef");
+
+// Which transitions the case offers depends on the case's own fields, so the
+// Actions menu goes stale the moment the Account Opening tab saves one. The
+// tab is a sibling of this header, so the signal comes down from TicketAgent.
+function reloadWorkflow(): void {
+  workflowActionsRef.value?.reload();
+}
+
+defineExpose({ reloadWorkflow });
 </script>
 
 <style>

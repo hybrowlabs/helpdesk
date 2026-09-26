@@ -1,10 +1,10 @@
 <template>
   <div v-if="ticket.doc?.name" class="flex-1">
-    <TicketHeader :viewers="viewers" />
+    <TicketHeader ref="headerRef" :viewers="viewers" />
     <div class="h-full flex overflow-hidden">
       <div class="flex-1 flex flex-col overflow-hidden">
         <!-- Tabs & Communication Area -->
-        <TicketActivityPanel />
+        <TicketActivityPanel @case-updated="headerRef?.reloadWorkflow()" />
       </div>
 
       <!-- Sidepanel with Resizer -->
@@ -94,6 +94,10 @@ const props = defineProps({
 });
 const route = useRoute();
 const showPhoneModal = ref(false);
+
+// The header owns the case's Actions menu and the activity panel owns the tab
+// that saves the case. They are siblings, so the reload hop goes through here.
+const headerRef = ref<InstanceType<typeof TicketHeader> | null>(null);
 
 const ticketComposable = computed(() => useTicket(props.ticketId));
 const ticket = computed(() => ticketComposable.value.ticket);

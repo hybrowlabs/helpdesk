@@ -54,6 +54,14 @@ export const slaData = ref({
   reopen_ticket_status: "",
   condition: [],
   condition_json: [],
+  custom_first_level_escalation_enabled: false,
+  custom_first_level_escalation_team: "",
+  custom_first_level_escalation_delay_hours: 0,
+  custom_second_level_escalation_enabled: false,
+  custom_second_level_escalation_target: "Specific Team",
+  custom_second_level_escalation_team: "",
+  custom_second_level_escalation_user: "",
+  custom_second_level_escalation_delay_hours: 24,
 });
 
 export const resetSlaData = () => {
@@ -75,6 +83,14 @@ export const resetSlaData = () => {
     reopen_ticket_status: "",
     condition: [],
     condition_json: [],
+    custom_first_level_escalation_enabled: false,
+    custom_first_level_escalation_team: "",
+    custom_first_level_escalation_delay_hours: 0,
+    custom_second_level_escalation_enabled: false,
+    custom_second_level_escalation_target: "Specific Team",
+    custom_second_level_escalation_team: "",
+    custom_second_level_escalation_user: "",
+    custom_second_level_escalation_delay_hours: 24,
   };
 };
 
@@ -97,6 +113,7 @@ export const slaDataErrors = ref<SlaValidationErrors>({
   end_date: "",
   support_and_resolution: "",
   condition: "",
+  escalation: "",
 });
 
 export const resetSlaDataErrors = () => {
@@ -113,6 +130,7 @@ export const resetSlaDataErrors = () => {
     end_date: "",
     support_and_resolution: "",
     condition: "",
+    escalation: "",
   };
 };
 
@@ -312,6 +330,65 @@ export function validateSlaData(
           }
         }
         break;
+
+      case "escalation": {
+        // The scheduler that acts on these settings lives in pc_helpdesk
+        // (`sla_escalation.run_team_escalation`, hourly). Each rule below
+        // mirrors a condition that job checks before it will move a ticket,
+        // so a policy that saves clean here actually escalates.
+        const escalationErrors: string[] = [];
+        const data = slaData.value;
+
+        if (data.custom_first_level_escalation_enabled) {
+          if (!data.custom_first_level_escalation_team) {
+            escalationErrors.push(
+              __("First level escalation needs a team to escalate to.")
+            );
+          }
+          if (Number(data.custom_first_level_escalation_delay_hours) < 0) {
+            escalationErrors.push(
+              __("First level wait time cannot be negative.")
+            );
+          }
+        }
+
+        if (data.custom_second_level_escalation_enabled) {
+          // Second level only ever sees tickets already at escalation level 1,
+          // which nothing but the first level can produce.
+          if (!data.custom_first_level_escalation_enabled) {
+            escalationErrors.push(
+              __(
+                "Second level escalation needs first level escalation to be enabled."
+              )
+            );
+          }
+          const target = data.custom_second_level_escalation_target;
+          if (
+            target === "Specific Team" &&
+            !data.custom_second_level_escalation_team
+          ) {
+            escalationErrors.push(
+              __("Second level escalation needs a team to escalate to.")
+            );
+          }
+          if (
+            target === "Specific User" &&
+            !data.custom_second_level_escalation_user
+          ) {
+            escalationErrors.push(
+              __("Second level escalation needs an agent to escalate to.")
+            );
+          }
+          if (Number(data.custom_second_level_escalation_delay_hours) <= 0) {
+            escalationErrors.push(
+              __("Second level wait time must be at least 1 hour.")
+            );
+          }
+        }
+
+        slaDataErrors.value.escalation = escalationErrors.join(" ");
+        break;
+      }
 
       default:
         break;

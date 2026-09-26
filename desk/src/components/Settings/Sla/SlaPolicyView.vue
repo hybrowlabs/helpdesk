@@ -248,6 +248,8 @@
           </div>
         </div>
         <hr class="my-8" />
+        <SlaEscalation />
+        <hr class="my-8" />
         <SlaHolidays />
       </div>
     </template>
@@ -286,6 +288,7 @@ import {
 } from "frappe-ui";
 import { inject, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import SlaAssignmentConditions from "./SlaAssignmentConditions.vue";
+import SlaEscalation from "./SlaEscalation.vue";
 import SlaHolidays from "./SlaHolidays.vue";
 import SlaPriorityList from "./SlaPriorityList.vue";
 import SlaStatusList from "./SlaStatusList.vue";
