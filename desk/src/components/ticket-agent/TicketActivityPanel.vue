@@ -7,6 +7,7 @@
   >
     <template #tab-panel="{ tab }">
       <TicketAnalyticsTab v-if="tab.name === 'analytics'" />
+      <TicketWorkflowTab v-else-if="tab.name === 'workflow'" />
       <TicketAgentActivities
         v-else-if="Boolean(activities.data)"
         ref="ticketAgentActivitiesRef"
@@ -57,7 +58,9 @@ import {
   PhoneIcon,
 } from "@/components/icons";
 import TicketAnalyticsTab from "@/components/ticket-agent/analytics/TicketAnalyticsTab.vue";
+import TicketWorkflowTab from "@/components/ticket-agent/TicketWorkflowTab.vue";
 import LucideChartNoAxesColumn from "~icons/lucide/chart-no-axes-column";
+import LucideFileText from "~icons/lucide/file-text";
 import { useActiveTabManager } from "@/composables/useActiveTabManager";
 import { useTelephonyStore } from "@/stores/telephony";
 import { ActivitiesSymbol, TabObject, TicketSymbol, TicketTab } from "@/types";
@@ -108,6 +111,11 @@ const tabs: ComputedRef<TabObject[]> = computed(() => {
     name: "analytics",
     label: "Analytics",
     icon: LucideChartNoAxesColumn,
+  });
+  _tabs.push({
+    name: "workflow",
+    label: "AOF",
+    icon: LucideFileText,
   });
   return _tabs;
 });
