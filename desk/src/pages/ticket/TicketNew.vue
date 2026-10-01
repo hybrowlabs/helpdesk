@@ -199,6 +199,17 @@ const template = createResource({
       router,
       $dialog,
       applyFilters,
+      // The subject and description are plain refs on this page, not template
+      // fields, so a form script cannot reach them through `doc`. Pass setters
+      // so a script can prefill them — e.g. from the chosen ticket type.
+      setSubject: (value: string) => {
+        subject.value = value ?? "";
+      },
+      setDescription: (value: string) => {
+        description.value = value ?? "";
+      },
+      getSubject: () => subject.value,
+      getDescription: () => description.value,
     });
     setupTemplateFields(data.fields);
   },

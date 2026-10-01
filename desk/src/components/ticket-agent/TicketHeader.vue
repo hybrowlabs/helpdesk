@@ -42,20 +42,35 @@
             </Dropdown>
           </div>
         </div>
-        <!-- Status -->
-        <Dropdown :options="statusDropdown" placement="right">
-          <template #default="{ open }">
-            <Button :label="__(ticket.doc.status)" ref="statusRef">
-              <template #prefix>
-                <IndicatorIcon
-                  :class="
-                    ticketStatusStore.getStatus(ticket.doc.status)?.parsed_color
-                  "
-                />
-              </template>
-            </Button>
-          </template>
-        </Dropdown>
+        <!-- Status. On a workflow ticket the application owns this, so the
+             control is shown disabled with the reason rather than hidden -
+             an agent looking for it should find out why it is not theirs. -->
+        <Tooltip
+          :text="statusControl.data?.reason || ''"
+          :disabled="!statusControl.data?.reason"
+        >
+          <Dropdown
+            :options="statusDropdown"
+            placement="right"
+            :disabled="!statusEditable"
+          >
+            <template #default="{ open }">
+              <Button
+                :label="__(ticket.doc.status)"
+                ref="statusRef"
+                :disabled="!statusEditable"
+              >
+                <template #prefix>
+                  <IndicatorIcon
+                    :class="
+                      ticketStatusStore.getStatus(ticket.doc.status)?.parsed_color
+                    "
+                  />
+                </template>
+              </Button>
+            </template>
+          </Dropdown>
+        </Tooltip>
         <!-- Core Actions + Custom Actions -->
         <Dropdown
           v-if="groupedActions[0]?.items?.length >= 1"
@@ -87,7 +102,7 @@ import { useShortcut } from "@/composables/shortcuts";
 import { useView } from "@/composables/useView";
 import { useAuthStore } from "@/stores/auth";
 import { globalStore } from "@/stores/globalStore";
-import { useTicketStatusStore } from "@/stores/ticketStatus";
+import { parseColor, useTicketStatusStore } from "@/stores/ticketStatus";
 import { __ } from "@/translation";
 import {
   ActivitiesSymbol,
@@ -104,6 +119,7 @@ import {
   createResource,
   Dropdown,
   toast,
+  Tooltip,
 } from "frappe-ui";
 import {
   computed,
@@ -114,6 +130,7 @@ import {
   PropType,
   ref,
   useTemplateRef,
+  watch,
   watchEffect,
 } from "vue";
 import { useRoute, useRouter } from "vue-router";
@@ -141,9 +158,52 @@ const activities = inject(ActivitiesSymbol)!;
 const showSubjectDialog = ref(false);
 
 const { notifyTicketUpdate } = useNotifyTicketUpdate(ticket.value?.name);
+// The status vocabulary is per ticket type — an account opening request moves
+// through In Process/Approved, a general enquiry through Replied/Resolved.
+const typeStatuses = createResource({
+  url: "philips_captial.pc_core.ticket_type_status.get_statuses_for_type",
+  makeParams: () => ({ ticket_type: ticket.value?.doc?.ticket_type }),
+  auto: true,
+  transform: (data: HDTicketStatus[]) =>
+    (data || []).map((s) => ({ ...s, parsed_color: parseColor(s.color) })),
+});
+
+watch(
+  () => ticket.value?.doc?.ticket_type,
+  () => typeStatuses.reload()
+);
+
+// On a ticket that reports on a workflow document the application owns the
+// status, so the agent is offered only what the server would accept — closing
+// a finished case, and nothing else. Asked of the server rather than derived
+// here: `enforce_derived_status` is what actually holds the line, and two
+// copies of that rule would drift.
+const statusControl = createResource({
+  url: "philips_captial.pc_core.ticket_status_sync.get_status_control",
+  makeParams: () => ({ ticket: ticket.value?.doc?.name }),
+  auto: true,
+  initialData: { editable: true, reason: "", allowed: [] },
+});
+
+const statusEditable = computed(() => statusControl.data?.editable !== false);
+
+watch(
+  () => [ticket.value?.doc?.name, ticket.value?.doc?.status],
+  () => statusControl.reload()
+);
+
 const statusDropdown = computed(() => {
-  const statuses =
-    ticketStatusStore.statuses.data?.filter((s) => s.enabled) || [];
+  let statuses =
+    typeStatuses.data ||
+    ticketStatusStore.statuses.data?.filter((s) => s.enabled) ||
+    [];
+  // A workflow ticket offers only the statuses the server allows by hand.
+  const allowed = statusControl.data?.allowed;
+  if (allowed?.length) {
+    statuses = statuses.filter((s: HDTicketStatus) =>
+      allowed.includes(s.label_agent)
+    );
+  }
   return statuses.map((o: HDTicketStatus) => ({
     label: __(o.label_agent),
     value: o.label_agent,
