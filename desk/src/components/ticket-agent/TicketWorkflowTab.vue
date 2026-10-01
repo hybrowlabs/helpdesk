@@ -149,6 +149,9 @@ import {
 import { computed, inject, reactive, ref, watch } from "vue";
 
 const ticket = inject(TicketSymbol);
+// Provided by TicketAgent: reloads the ticket, its assignees and its activity
+// feed together. A workflow save can change all three.
+const refreshTicket = inject<() => void>("refreshTicket", () => {});
 const ticketId = computed(() => String(ticket.value?.doc?.name));
 const { $dialog } = globalStore();
 
@@ -395,10 +398,13 @@ const saveDoc = createResource({
     toast.success(__("Saved"));
     workflow.data = res;
     formMeta.reload();
-    // The ticket's status is derived from this document, so a save here can
-    // have just changed it. Without this the header badge keeps showing the
-    // status the page was loaded with, which reads as the save not working.
-    ticket.value?.reload?.();
+    // Saving here can change the ticket itself, not just this form: the status
+    // is derived from this document, and reaching an outcome hands the ticket
+    // to the next team, which reassigns it. Reloading only the ticket left the
+    // assignee chip showing whoever held it before the hand-off until the page
+    // was refreshed by hand. `reloadTicket` refetches the document, its
+    // assignees and its activity feed together, which is what actually changed.
+    refreshTicket?.();
   },
   onError(err: any) {
     // frappe-ui discards the server's message title while unwrapping

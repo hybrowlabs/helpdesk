@@ -4,6 +4,13 @@
       v-if="analytics.data"
       class="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-4"
     >
+      <!-- The case comes first: on a workflow ticket the work happens in the
+           application, and the conversation metrics below are secondary.
+           Renders nothing when the ticket runs no workflow. -->
+      <CaseProgress
+        :ticket-id="ticketId"
+        :status="String(ticket.doc.status ?? '')"
+      />
       <TicketTimeline
         :timeline="analytics.data.timeline"
         :events="analytics.data.events"
@@ -34,6 +41,7 @@ import { TicketSymbol } from "@/types";
 import { Button, LoadingIndicator } from "frappe-ui";
 import { computed, inject, watch } from "vue";
 import AnalyticsMetricCards from "./AnalyticsMetricCards.vue";
+import CaseProgress from "./CaseProgress.vue";
 import ConversationSummary from "./ConversationSummary.vue";
 import TicketTimeline from "./TicketTimeline.vue";
 

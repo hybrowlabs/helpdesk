@@ -64,15 +64,38 @@ const props = defineProps({
   },
 });
 
+// Two rules this control has to get right, and used to get wrong.
+//
+// 1. The current value is not a search term. Seeding the filter with it
+//    meant a field holding RM01 opened showing only RM01 — the other
+//    relationship managers existed and were permitted, but the dropdown
+//    looked like a one-item list. The current value is for *display*, so
+//    it selects the matching option rather than filtering the query.
+// 2. People search by the name they know, not the code the system stores.
+//    Searching only `name` meant typing "Arjun" matched nothing, because
+//    that record is called RM02. Code and title are both searched.
+//
+// `orFilters` is frappe-ui's camelCase option; it is what the resource
+// serialises to the server's `or_filters` (listResource.js). Spelling it
+// `or_filters` here silently drops the clause and returns everything.
+const searchFields = computed(() =>
+  props.labelField && props.labelField !== props.searchField
+    ? [props.searchField, props.labelField]
+    : [props.searchField]
+);
+
+function searchClause(query: string) {
+  return query
+    ? searchFields.value.map((f) => [f, "like", `%${query}%`])
+    : undefined;
+}
+
 const r = createListResource({
   doctype: props.doctype,
   pageLength: props.pageLength,
   auto: true,
-  fields: [props.labelField, props.searchField, props.valueField],
-  filters: {
-    [props.searchField]: ["like", `%${props.value}%`],
-    ...props.customFilters,
-  },
+  fields: [...new Set([props.labelField, props.searchField, props.valueField])],
+  filters: { ...props.customFilters },
   onSuccess: () => {
     selection.value = props.value
       ? options.value.find((o) => o.value === props.value)
@@ -90,10 +113,8 @@ const selection = ref(null);
 
 function onUpdateQuery(query: string) {
   r.update({
-    filters: {
-      [props.searchField]: ["like", `%${query}%`],
-      ...props.customFilters,
-    },
+    filters: { ...props.customFilters },
+    orFilters: searchClause(query),
   });
 
   r.reload();

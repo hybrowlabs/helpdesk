@@ -85,3 +85,44 @@ export interface RailMarker {
 
 export type RailSegment = RailNode | RailLine;
 export type LineOptions = Omit<RailLine, "kind" | "colorClass">;
+
+// Case analytics: the workflow document behind a ticket, not the conversation
+// on it. Shape is flow-agnostic — the backend names the stages, so a new flow
+// is a server-side registry entry and needs no change here.
+export interface CaseStage {
+  status: string;
+  label: string;
+  // null when the flow's doctype keeps no history: the stage is known, its
+  // duration is not, and no number is better than a made-up one.
+  seconds: number | null;
+  duration: string | null;
+  owner: string | null;
+  current: boolean;
+  since: string | null;
+}
+
+export interface CaseDeadline {
+  label: string;
+  due: string;
+  days: number;
+  overdue: boolean;
+  cleared: boolean;
+  cleared_on: string | null;
+  detail_label: string | null;
+  detail: string | null;
+}
+
+export interface CasePressure {
+  label: string;
+  count: number;
+  last: string | null;
+}
+
+export interface CaseAnalytics {
+  doctype: string;
+  label: string;
+  case: string | null;
+  stages: CaseStage[];
+  deadline: CaseDeadline | null;
+  pressure: CasePressure | null;
+}
