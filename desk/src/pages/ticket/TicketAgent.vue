@@ -166,6 +166,7 @@
       <TicketAgentSidebar
         :ticket="ticket.data"
         @update="({ field, value }) => updateTicket(field, value)"
+        @update-fields="(values) => updateTicketFields(values)"
         @email:open="(e) => communicationAreaRef?.toggleEmailBox()"
         @reload="ticket.reload()"
       />
@@ -779,6 +780,51 @@ function updateTicket(fieldname: string, value: string) {
       value,
     },
     debounce: 500,
+    auto: true,
+    onSuccess: () => {
+      isLoading.value = false;
+      isErrorTriggered.value = false;
+      ticket.reload();
+    },
+    onError: (error) => {
+      if (isErrorTriggered.value) return;
+      isErrorTriggered.value = true;
+
+      const text = error.exc_type
+        ? (error.messages || error.message || []).join(", ")
+        : error.message;
+      toast.error(text);
+
+      ticket.reload();
+    },
+  });
+}
+
+function updateTicketFields(values: Record<string, string>) {
+  isErrorTriggered.value = false;
+
+  const changed: Record<string, string> = {};
+  for (const [fieldname, value] of Object.entries(values)) {
+    if (value === (ticket.data[fieldname] || "")) continue;
+    changed[fieldname] = value;
+  }
+  if (!Object.keys(changed).length) return;
+
+  for (const [fieldname, value] of Object.entries(changed)) {
+    ticket.data[fieldname] = value;
+  }
+  toast.success("Ticket updated");
+
+  // One write for the whole group: `frappe.client.set_value` takes a dict of
+  // fieldname -> value and saves the document once, so fields that validate
+  // against each other (category / sub category) are never half-applied.
+  createResource({
+    url: "frappe.client.set_value",
+    params: {
+      doctype: "HD Ticket",
+      name: props.ticketId,
+      fieldname: changed,
+    },
     auto: true,
     onSuccess: () => {
       isLoading.value = false;

@@ -56,7 +56,7 @@ doc_events = {
         "on_trash": "helpdesk.extends.assignment_rule.on_assignment_rule_trash",
     },
     "ToDo": {
-        "after_insert": "helpdesk.overrides.todo.after_insert",
+        "before_insert": "helpdesk.overrides.todo.before_insert",
     },
 }
 

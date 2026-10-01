@@ -72,6 +72,29 @@ export interface ViewLog {
   creation: string;
 }
 
+export interface TicketEscalation {
+  // "pending" -- next level is coming up, "breached" -- escalation point passed
+  // or every level has fired, "none" -- nothing to escalate
+  status: "pending" | "breached" | "paused" | "none";
+  enabled: boolean;
+  level: number;
+  next_level: number | null;
+  next_level_name: string | null;
+  due_on: string | null;
+  // Working seconds left until `due_on`, per the SLA's support hours
+  remaining_seconds: number | null;
+  // Ticket is awaiting the customer, so the SLA resolution clock is on hold
+  sla_paused: boolean;
+  is_working_now: boolean;
+  // Server clock at read time, so the UI counts against it not the browser's
+  server_now: string | null;
+  // Shift boundaries around `server_now`, for context
+  working_until: string | null;
+  next_working_start: string | null;
+  last_escalated_on: string | null;
+  last_escalated_to: string | null;
+}
+
 export interface Ticket {
   _assign: string;
   assignee: UserInfo;
@@ -101,6 +124,17 @@ export interface Ticket {
   views: ViewLog[];
   _customActions: Function[];
   is_merged?: boolean;
+  escalation?: TicketEscalation;
+  custom_category?: string;
+  custom_sub_category?: string;
+  // Whether the current user may change the two fields above
+  can_change_category?: boolean;
+  custom_rasied_for?: string;
+  custom_raised_for?: string;
+  custom_for_myself?: 0 | 1;
+  custom_for_others?: 0 | 1;
+  custom_raise_for_employee?: string;
+  custom_raise_for_employee_name?: string;
 }
 
 export interface DocField {

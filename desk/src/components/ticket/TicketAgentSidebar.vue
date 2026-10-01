@@ -36,8 +36,13 @@
     />
     <!-- ticket details -->
     <TicketAgentDetails :ticket="ticket" />
-    <!-- Raise For Others fields -->
-    <TicketRaiseForOthersFields :ticket="ticket" @update="update" />
+    <!-- Raise For Others fields (read only) -->
+    <TicketRaiseForOthersFields :ticket="ticket" />
+    <!-- category / sub category -->
+    <TicketCategoryFields
+      :ticket="ticket"
+      @update-fields="(values) => emit('update-fields', values)"
+    />
     <!-- fields -->
     <TicketAgentFields :ticket="ticket" @update="update" />
     <TicketMergeModal
@@ -58,6 +63,7 @@ import TicketAgentContact from "./TicketAgentContact.vue";
 import TicketAgentDetails from "./TicketAgentDetails.vue";
 import TicketAgentFields from "./TicketAgentFields.vue";
 import TicketRaiseForOthersFields from "./TicketRaiseForOthersFields.vue";
+import TicketCategoryFields from "./TicketCategoryFields.vue";
 import TicketMergeModal from "./TicketMergeModal.vue";
 
 interface Props {
@@ -66,7 +72,12 @@ interface Props {
 
 const props = defineProps<Props>();
 
-const emit = defineEmits(["update", "email:open", "reload"]);
+const emit = defineEmits([
+  "update",
+  "update-fields",
+  "email:open",
+  "reload",
+]);
 
 function update(val = null) {
   if (val.value && typeof val.value === "object") {

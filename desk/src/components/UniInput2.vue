@@ -9,7 +9,16 @@
     <div
       class="-m-0.5 min-h-[28px] flex-1 items-center overflow-hidden p-0.5 text-base"
     >
+      <div
+        v-if="readonly"
+        class="flex min-h-[28px] items-center px-2"
+        :class="readonlyText ? 'text-ink-gray-8' : 'text-ink-gray-4'"
+        :title="readonlyText"
+      >
+        <span class="truncate">{{ readonlyText || "—" }}</span>
+      </div>
       <component
+        v-else
         :is="component"
         :key="field.fieldname"
         class="form-control"
@@ -46,6 +55,7 @@ import { computed, h } from "vue";
 interface P {
   field: Field;
   value: FieldValue;
+  readonly?: boolean;
 }
 
 interface R {
@@ -102,7 +112,7 @@ const component = computed(() => {
 
 const apiOptions = createResource({
   url: props.field.url_method,
-  auto: !!props.field.url_method,
+  auto: !!props.field.url_method && !props.readonly,
   transform: (data) => {
     if (!data?.length) return [];
     return (
@@ -119,6 +129,13 @@ const transValue = computed(() => {
     return props.value ? "Yes" : "No";
   }
   return props.value;
+});
+
+// What a read-only field shows: Yes / No for a check, nothing for an empty
+// value (the template falls back to a dash).
+const readonlyText = computed(() => {
+  const value = transValue.value;
+  return value === null || value === undefined ? "" : String(value);
 });
 
 function emitUpdate(fieldname: Field["fieldname"], value: FieldValue) {

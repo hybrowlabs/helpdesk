@@ -5,6 +5,7 @@
       :key="field.fieldname"
       :field="field"
       :value="ticket[field.fieldname]"
+      :readonly="READ_ONLY_FIELDS.has(field.fieldname)"
       @change="(data) => update(data.fieldname, data.value)"
     />
   </div>
@@ -23,6 +24,18 @@ const props = defineProps({
     required: true,
   },
 });
+
+// Shown in the sidebar but never edited from it: who the ticket is for is
+// settled when it is raised, and the team follows the category (changing the
+// category re-routes the ticket).
+const READ_ONLY_FIELDS = new Set([
+  "customer",
+  "agent_group",
+  "ticket_type",
+  "custom_for_myself",
+  "custom_for_others",
+  "custom_raise_for_employee",
+]);
 
 const fields = computed(() => {
   return props.ticket.fields.filter((field) => field.fieldname !== "priority");
