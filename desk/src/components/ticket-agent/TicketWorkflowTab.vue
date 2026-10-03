@@ -63,6 +63,8 @@
                     :key="field.fieldname"
                     :field="field"
                     :modelValue="values[field.fieldname]"
+                    :doc="values"
+                    :fields="form?.fields || []"
                     :disabled="isDisabled(field)"
                     :required="isRequired(field)"
                     @update:modelValue="(v) => setValue(field, v)"
@@ -177,8 +179,24 @@ const formMeta = createResource({
   auto: true,
   onSuccess(res: any) {
     Object.keys(values).forEach((k) => delete values[k]);
-    Object.assign(values, res.values || {});
-    pristine.value = { ...(res.values || {}) };
+    // A new form starts from the doctype's own defaults, not from nothing.
+    // `values` is empty until an application exists, so without this a
+    // field declared `default: 1` renders unticked and saves 0 — the
+    // server never sees the field it defaulted, because the form sends
+    // what it holds. The IB copy checkbox is the case that matters: it is
+    // meant to be on unless an agent turns it off.
+    const defaults: Record<string, any> = {};
+    for (const field of res.fields || []) {
+      if (field.default !== undefined && field.default !== null) {
+        defaults[field.fieldname] =
+          field.fieldtype === "Check" ? Number(field.default) : field.default;
+      }
+    }
+    Object.assign(values, defaults, res.values || {});
+    // Pristine is what the form was born with, defaults included: an
+    // untouched new form is not dirty, and Save stays offered only because
+    // the document does not exist yet.
+    pristine.value = { ...defaults, ...(res.values || {}) };
     if (!activeTab.value && res.fields?.length) {
       activeTab.value = firstTabLabel(res.fields);
     }
@@ -332,6 +350,50 @@ async function setValue(field: any, value: any) {
   values[field.fieldname] = value;
   if (field.fieldtype !== "Link" || !form.value?.doctype) return;
   await applyFetched(field.fieldname, value);
+  clearStaleDependents(field.fieldname);
+}
+
+// A link that restricts other links invalidates them when it changes: move an
+// application to another branch and the Sub Broker, RM and Trader already on
+// it are people from the branch it left. Leaving them would save a row the
+// picker itself would no longer offer, and the agent has no reason to look at
+// fields they are not editing.
+//
+// Branch is the restricting field here, and it is fetched from IB rather than
+// typed — so changing IB has to clear them too. `applyFetched` runs first, so
+// `values.branch` is the new branch by the time this is checked.
+function clearStaleDependents(changed: string) {
+  for (const df of form.value?.fields || []) {
+    if (df.fieldtype !== "Link" || !df.link_filters || !values[df.fieldname]) {
+      continue;
+    }
+
+    let parsed: any[];
+    try {
+      parsed =
+        typeof df.link_filters === "string"
+          ? JSON.parse(df.link_filters)
+          : df.link_filters;
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(parsed)) continue;
+
+    const sources = parsed
+      .map((row: any) =>
+        Array.isArray(row) && typeof row[3] === "string"
+          ? row[3].match(/^eval:doc\.([a-z0-9_]+)/i)?.[1]
+          : null
+      )
+      .filter(Boolean) as string[];
+
+    // Cleared either by editing the restricting field itself, or by editing
+    // the field it is fetched from.
+    const affected = sources.some(
+      (s) => s === changed || fieldsByName.value[s]?.fetch_from?.startsWith(`${changed}.`)
+    );
+    if (affected) values[df.fieldname] = "";
+  }
 }
 
 async function applyFetched(fieldname: string, value: any, seen = new Set<string>()) {
