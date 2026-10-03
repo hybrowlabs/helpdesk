@@ -49,6 +49,27 @@ class HDNotification(Document):
             }
 
     def after_insert(self):
+        # The bell is a list the client fetched once, so an entry written
+        # while an agent is working stayed invisible until they reloaded the
+        # page. Told here rather than at each producer: assignment, mention
+        # and the AOF mail flow all insert this doctype, and a nudge wired
+        # into one of them leaves the others refresh-only.
+        #
+        # Addressed to the recipient alone — not helpdesk's publish_event,
+        # which passes room="website" and so broadcasts to every client
+        # (publish_realtime only derives the user room when no room is
+        # given, frappe/realtime.py:58-66).
+        #
+        # after_commit, because the row has to be readable by the time the
+        # client refetches; publishing inside the transaction races it.
+        # Before the Mention branch below, which returns early.
+        frappe.publish_realtime(
+            "helpdesk:new-notification",
+            message={"ticket": self.reference_ticket},
+            user=self.user_to,
+            after_commit=True,
+        )
+
         if self.notification_type == "Mention":
             skip_email_workflow = frappe.db.get_single_value(
                 "HD Settings", "skip_email_workflow"

@@ -67,6 +67,15 @@
               <span v-if="n.notification_type === 'Reaction'">
                 {{ n.message || "has reopened the ticket" }}
               </span>
+              <!-- A system mail about the case was raised naming this
+                   person. The message is the mail's own subject, so the bell
+                   says which letter it was. "Queued", not "sent": the mail
+                   exists to be delivered, and whether it actually left is
+                   the Email Queue's answer — shown on the case's Reminders
+                   card, not claimed here. -->
+              <span v-if="n.notification_type === 'Mail'">
+                {{ n.message || "queued an email about ticket" }}
+              </span>
             </span>
             <span class="font-medium text-ink-gray-9"
               >&nbsp{{ n.reference_ticket }}
@@ -143,6 +152,19 @@ function getRoute(n: Notification) {
         params: {
           ticketId: n.reference_ticket,
         },
+      };
+    case "Mail":
+      // The mail itself is filed on the ticket, so the Emails tab is where
+      // the thing the bell is about actually is.
+      return {
+        name: "TicketAgent",
+        params: {
+          ticketId: n.reference_ticket,
+        },
+        // The tab's own name is "email" (TicketActivityPanel), and the hash
+        // is that name lowercased — "#emails" would match no tab and fall
+        // back to Activity.
+        hash: "#email",
       };
     case "Reaction":
       return {

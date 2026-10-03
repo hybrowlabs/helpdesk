@@ -112,10 +112,31 @@ export interface CaseDeadline {
   detail: string | null;
 }
 
+export interface CaseDelivery {
+  status: string;
+  sent: boolean;
+  at: string | null;
+  error: string | null;
+}
+
+export interface CaseReminder {
+  number: number;
+  label: string;
+  date: string | null;
+  // "raised" is a mail the system produced that the server has not accepted
+  // yet — a suspended queue, or one that errored. It is deliberately not
+  // "sent": that word is reserved for a mail that actually left.
+  state: "sent" | "raised" | "scheduled" | "overdue" | "stopped";
+  delivery: CaseDelivery | null;
+}
+
 export interface CasePressure {
   label: string;
-  count: number;
+  raised: number;
+  sent: number;
   last: string | null;
+  stopped: boolean;
+  schedule: CaseReminder[];
 }
 
 export interface CaseAnalytics {

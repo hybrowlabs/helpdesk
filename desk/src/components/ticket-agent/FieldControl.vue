@@ -174,10 +174,13 @@ const props = defineProps<{
 
 const emit = defineEmits<{ "update:modelValue": [value: any] }>();
 
+// Only Table MultiSelect. A plain Table is rows of columns, not a list of
+// links: rendering one here showed the agent its child rows' identities —
+// Email Queue hashes such as "53vcj30687" — in an editable picker. The
+// server no longer sends plain Tables; this keeps the control honest about
+// what it can actually display.
 const isMultiLink = computed(
-  () =>
-    props.field.fieldtype === "Table MultiSelect" ||
-    props.field.fieldtype === "Table"
+  () => props.field.fieldtype === "Table MultiSelect"
 );
 
 // Frappe stores a Time with microseconds ("12:35:59.620237"), while the

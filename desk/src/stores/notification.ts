@@ -66,6 +66,13 @@ export const useNotificationStore = defineStore("notification", () => {
     if (isCustomerPortal.value) return;
     resource.reload();
   });
+  // A notification raised while the agent is working was only picked up by
+  // the next full page load, so the bell stayed silent until they reloaded.
+  // The server publishes this to the one recipient as the entry is written.
+  $socket.on("helpdesk:new-notification", () => {
+    if (isCustomerPortal.value) return;
+    resource.reload();
+  });
 
   return {
     clear,

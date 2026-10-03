@@ -48,6 +48,13 @@
             <span v-if="n.notification_type === 'Reaction'">{{
               __("has reopened the ticket")
             }}</span>
+            <!-- A system mail about the case was raised naming this person.
+                 The message is the mail's own subject. "Queued", not "sent":
+                 whether it left is the Email Queue's answer, shown on the
+                 case's Reminders card. -->
+            <span v-if="n.notification_type === 'Mail'">{{
+              n.message || __("queued an email about ticket")
+            }}</span>
             <span class="font-medium text-ink-gray-9">{{
               n.reference_ticket
             }}</span>
@@ -108,6 +115,17 @@ function getRoute(n: Notification) {
         // TicketAgentActivities); the hash only selects the tab.
         hash: "#activity",
         query: { highlight: "comment-" + n.reference_comment },
+      };
+    case "Mail":
+      // The mail is filed on the ticket, so the Emails tab is where the
+      // thing the bell is about actually is. The hash is the tab's `name`
+      // lowercased — "email", not "emails" (TicketActivityPanel).
+      return {
+        name: "TicketAgent",
+        params: {
+          ticketId: n.reference_ticket,
+        },
+        hash: "#email",
       };
     case "Assignment":
     case "Reaction":
