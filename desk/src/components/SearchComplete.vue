@@ -102,10 +102,13 @@ const r = createListResource({
       : null;
   },
 });
+// A record whose title field is empty would otherwise render as a blank
+// line: present, selectable, invisible. The name is always set, so it
+// stands in — a visible code beats an empty row.
 const options = computed(
   () =>
     r.data?.map((result) => ({
-      label: result[props.labelField],
+      label: result[props.labelField] || result[props.valueField],
       value: result[props.valueField],
     })) || []
 );
