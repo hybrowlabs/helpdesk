@@ -20,7 +20,7 @@ import { createDialog } from "./components/dialogs";
 import "./index.css";
 import { router } from "./router";
 import { socket } from "./socket";
-import { posthogPlugin } from "./telemetry";
+import { telemetryPlugin } from "./telemetry";
 import { isCustomerPortal } from "@/utils";
 import { translationPlugin } from "./translation";
 import CircleAlert from "~icons/lucide/circle-alert";
@@ -66,7 +66,7 @@ const app = createApp(App);
 app.use(FrappeUI);
 app.use(pinia);
 app.use(router);
-app.use(posthogPlugin);
+app.use(telemetryPlugin);
 app.use(translationPlugin);
 
 for (const c in globalComponents) {

@@ -111,11 +111,15 @@ def save_resolution_with_history(
     )
 
     # Get the current max version number for this ticket
-    max_version = frappe.db.get_value(
-        "HD Resolution History",
-        {"ticket": ticket_id},
-        "MAX(version_number)"
-    ) or 0
+    max_version = (
+        frappe.db.get_value(
+            "HD Resolution History",
+            {"ticket": ticket_id},
+            "version_number",
+            order_by="version_number desc",
+        )
+        or 0
+    )
 
     # Dedup: if content is identical to existing resolution and current version is still pending, skip
     if old_resolution_exists and old_resolution.strip() == resolution_content:
@@ -180,11 +184,15 @@ def save_resolution_with_history(
         """, (ticket_id,))
 
     # Create new resolution history entry as current
-    max_version = frappe.db.get_value(
-        "HD Resolution History",
-        {"ticket": ticket_id},
-        "MAX(version_number)"
-    ) or 0
+    max_version = (
+        frappe.db.get_value(
+            "HD Resolution History",
+            {"ticket": ticket_id},
+            "version_number",
+            order_by="version_number desc",
+        )
+        or 0
+    )
     new_version = max_version + 1
 
     # Use a single timestamp so the before_save dedup in hd_ticket.py can match

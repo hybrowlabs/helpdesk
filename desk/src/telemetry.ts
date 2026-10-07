@@ -1,98 +1,76 @@
-import { ref } from "vue";
 import { createResource } from "frappe-ui";
 
 const APP = "helpdesk";
-const SITENAME = window.location.hostname;
-const POSTHOG_SCRIPT_SRC = "/assets/frappe/js/lib/posthog.js";
 
-interface PosthogInstance {
-  init?: (projectId: string, options: Record<string, unknown>) => void;
-  identify?: (id: string) => void;
-  capture?: (event: string, options?: Record<string, unknown>) => void;
-  startSessionRecording?: () => void;
-  stopSessionRecording?: () => void;
-  sessionRecordingStarted?: () => boolean;
-  __loaded?: boolean;
-}
+// The pulse client is served by pulse itself and loaded at runtime, so it does
+// not depend on this app's (or the site's) framework version. `client_url` comes
+// from the server config; the constant is only a fallback.
+const DEFAULT_PULSE_CLIENT_URL =
+  "https://pulse.m.frappe.cloud/assets/pulse/js/pulse_client.js";
 
-declare global {
-  interface Window {
-    posthog?: PosthogInstance;
-  }
-}
-
-type PosthogSettings = {
-  posthog_project_id: string;
-  posthog_host: string;
-  enable_telemetry: boolean;
-  telemetry_site_age: number;
+type PulseBootConfig = {
+  enabled: boolean;
+  host?: string;
+  client_url?: string;
+  key?: string;
+  site?: string;
+  user?: string | null;
+  team?: string | null;
+  site_age?: number;
 };
 
-const telemetry = ref({
-  enabled: false,
-  project_id: "",
-  host: "",
-});
-
-let posthogScriptPromise: Promise<void> | null = null;
-
-const posthogSettings = createResource({
-  url: "helpdesk.api.telemetry.get_posthog_settings",
-  cache: "posthog_settings",
-  onSuccess: (ps: PosthogSettings) => init(ps),
-});
-
-function isTelemetryEnabled(ps?: PosthogSettings) {
-  const settings = ps || posthogSettings.data;
-  if (!settings) return false;
-
-  return Boolean(
-    settings.enable_telemetry &&
-      settings.posthog_project_id &&
-      settings.posthog_host
-  );
+interface PulseClient {
+  init: () => Promise<boolean>;
+  capture: (
+    event: string,
+    app?: string,
+    props?: Record<string, unknown>
+  ) => void;
+  flush: () => Promise<void> | undefined;
+  stop: () => void;
 }
 
-function loadPosthog() {
-  if (window.posthog?.init) return Promise.resolve();
+let client: PulseClient | null = null;
+let enabled = false;
+// Events captured while the remote client module is still importing.
+let pending: [string, Record<string, unknown>][] = [];
 
-  if (!posthogScriptPromise) {
-    posthogScriptPromise = new Promise((resolve) => {
-      const script = document.createElement("script");
-      script.src = POSTHOG_SCRIPT_SRC;
-      script.async = true;
-      script.onload = () => resolve();
-      script.onerror = () => resolve();
-      document.head.appendChild(script);
+const telemetryConfig = createResource({
+  url: "frappe.utils.telemetry.pulse.client.boot_config",
+  cache: "pulse_boot_config",
+  onSuccess: (config: PulseBootConfig) => init(config),
+});
+
+export async function init(config: PulseBootConfig) {
+  if (!config?.enabled || client) return;
+
+  // Buffer from here on: captures during the import window would otherwise be lost.
+  enabled = true;
+
+  try {
+    // A runtime variable (not a literal) so the bundler leaves this as a real
+    // runtime import of the remote module instead of trying to bundle it.
+    const url = config.client_url || DEFAULT_PULSE_CLIENT_URL;
+    const mod = await import(/* @vite-ignore */ url);
+
+    client = new mod.PulseClient({
+      host: config.host,
+      apiKey: config.key,
+      site: config.site,
+      enabled: true,
+      user: config.user,
+      team: config.team,
     });
+    await client.init();
+
+    pending.forEach(([event, props]) => client!.capture(event, APP, props));
+    pending = [];
+  } catch {
+    // Remote client unreachable: drop the provider instead of buffering forever.
+    enabled = false;
+    client = null;
+    pending = [];
   }
-
-  return posthogScriptPromise;
-}
-
-export async function init(ps: PosthogSettings) {
-  if (!isTelemetryEnabled(ps)) return;
-
-  await loadPosthog();
-
-  const posthog = window.posthog;
-  if (!posthog?.init) return;
-
-  telemetry.value.enabled = true;
-  telemetry.value.project_id = ps.posthog_project_id;
-  telemetry.value.host = ps.posthog_host;
-
-  posthog.init(ps.posthog_project_id, {
-    api_host: ps.posthog_host,
-    autocapture: false,
-    person_profiles: "identified_only",
-    disable_session_recording: true,
-    advanced_disable_decide: true,
-    loaded: (ph: PosthogInstance) => {
-      window.posthog = ph;
-      ph.identify?.(SITENAME);
-    },
-  });
 }
 
 interface CaptureOptions {
@@ -102,29 +80,17 @@ interface CaptureOptions {
   };
 }
 
-export function capture(
-  event: string,
-  options: CaptureOptions = { data: { user: "" } }
-) {
-  if (!isTelemetryEnabled()) return;
-  window.posthog?.capture?.(`${APP}_${event}`, options);
-}
+export function capture(event: string, options: CaptureOptions = { data: {} }) {
+  if (!enabled) return;
 
-export function recordSession() {
-  if (!telemetry.value.enabled) return;
-  if (window.posthog?.__loaded) {
-    window.posthog.startSessionRecording?.();
+  const props = (options?.data || {}) as Record<string, unknown>;
+  if (client) {
+    client.capture(event, APP, props);
+  } else {
+    pending.push([event, props]);
   }
 }
 
-export function stopSession() {
-  if (!telemetry.value.enabled) return;
-  if (window.posthog?.__loaded && window.posthog.sessionRecordingStarted?.()) {
-    window.posthog.stopSessionRecording?.();
-  }
-}
-
-export function posthogPlugin(app: any) {
-  app.config.globalProperties.posthog = window.posthog;
-  if (!window.posthog?.__loaded) posthogSettings.fetch();
+export function telemetryPlugin() {
+  telemetryConfig.fetch();
 }

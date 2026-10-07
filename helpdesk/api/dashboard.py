@@ -381,7 +381,7 @@ def get_team_chart_data(from_date, to_date, filters=None):
     """
     result = frappe.get_all(
         "HD Ticket",
-        fields=["agent_group as team", "count(name) as count"],
+        fields=["agent_group as team", {"COUNT": "name", "as": "count"}],
         filters=filters,
         group_by="agent_group",
         order_by="count desc",
@@ -415,7 +415,7 @@ def get_ticket_type_chart_data(from_date, to_date, filters=None):
     """
     result = frappe.get_all(
         "HD Ticket",
-        fields=["ticket_type as type", "count(name) as count"],
+        fields=["ticket_type as type", {"COUNT": "name", "as": "count"}],
         filters=filters,
         group_by="ticket_type",
         order_by="count desc",
@@ -446,7 +446,7 @@ def get_ticket_priority_chart_data(from_date, to_date, filters=None):
     """
     result = frappe.get_all(
         "HD Ticket",
-        fields=["priority as priority", "count(name) as count"],
+        fields=["priority as priority", {"COUNT": "name", "as": "count"}],
         filters=filters,
         group_by="priority",
         order_by="count desc",
@@ -482,7 +482,7 @@ def get_ticket_channel_chart_data(from_date, to_date, filters=None):
     """
     result = frappe.get_all(
         "HD Ticket",
-        fields=["via_customer_portal as channel ", "count(name) as count"],
+        fields=["via_customer_portal as channel", {"COUNT": "name", "as": "count"}],
         filters=filters,
         group_by="via_customer_portal",
         order_by="via_customer_portal desc",

@@ -10,9 +10,8 @@
 import { Dialogs } from "@/components/dialogs";
 import KeymapDialog from "@/pages/KeymapDialog.vue";
 import { useConfigStore } from "@/stores/config";
-import { stopSession } from "@/telemetry";
 import { FrappeUIProvider, toast } from "frappe-ui";
-import { computed, defineAsyncComponent, h, onMounted, onUnmounted } from "vue";
+import { computed, defineAsyncComponent, h, onMounted } from "vue";
 import Wifi from "~icons/lucide/wifi";
 import WifiOff from "~icons/lucide/wifi-off";
 import { useAuthStore } from "./stores/auth";
@@ -48,9 +47,5 @@ const PortalRoot = computed(() => {
   } else {
     return CustomerPortalRoot;
   }
-});
-
-onUnmounted(() => {
-  stopSession();
 });
 </script>
