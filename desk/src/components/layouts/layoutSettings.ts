@@ -17,14 +17,16 @@ import { __ } from "@/translation";
 export const showShortcutsModal = ref(false);
 
 /**
- * Reports this user may open. Shared by the sidebar and the command palette so
- * neither offers a Reports entry that lands on an empty page. One resource, so
- * the list is fetched once rather than per surface.
+ * Reports this user may open. Shared by the sidebar, the command palette and
+ * the Reports page so the list is fetched once rather than per surface.
+ *
+ * Not `auto`: this module is imported before login and by the customer
+ * portal, and an automatic fetch would run as Guest and cache the 403.
+ * AppSidebar triggers it once it knows the user is an agent.
  */
 export const permittedReports = createResource({
   url: "helpdesk.api.report.get_permitted_reports",
   cache: "permittedReports",
-  auto: true,
 });
 
 export const agentPortalSidebarOptions = [

@@ -154,6 +154,10 @@ const sidebarStore = useSidebarStore();
 const { isCallingEnabled } = storeToRefs(useTelephonyStore());
 const { pinnedViews, publicViews, viewActions, handleView } = useView();
 
+// Agent portal only: customer-portal users have no reports, and asking as a
+// customer would cache an empty list against the shared resource.
+if (!isCustomerPortal.value) permittedReports.fetch();
+
 // Local modal state for the per-view kebab menu (edit/duplicate). The action
 // logic itself is shared via useView so the sidebar and breadcrumb stay in sync.
 // ref, not reactive: v-model needs a writable binding, and a ref stays
