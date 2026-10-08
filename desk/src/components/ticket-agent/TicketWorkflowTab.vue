@@ -441,10 +441,11 @@ function isDisabled(field: any): boolean {
   // value may then be edited. Locking every fetched field would stop an agent
   // correcting one the source got wrong.
   if (field.read_only) return true;
-  if (
-    field.permlevel &&
-    !(f.write_permlevels || []).includes(field.permlevel)
-  ) {
+  // `?? 0`, not a truthiness test: level 0 is a real permlevel. Treating it
+  // as "no restriction" left level-0 fields enabled for a role that only
+  // writes level 1 (CSS), and the server then dropped the edit silently —
+  // the form reported "Saved" with the old value still in place.
+  if (!(f.write_permlevels || []).includes(field.permlevel ?? 0)) {
     return true;
   }
   if (field.read_only_depends_on) {
