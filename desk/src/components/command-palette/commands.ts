@@ -1,5 +1,6 @@
 import {
   agentPortalSidebarOptions,
+  permittedReports,
   showShortcutsModal,
 } from "@/components/layouts/layoutSettings";
 import {
@@ -86,6 +87,11 @@ function navigateCommands(): Command[] {
   const callingEnabled = useTelephonyStore().isCallingEnabled;
   return agentPortalSidebarOptions
     .filter((option) => callingEnabled || option.label !== __("Call Logs"))
+    // Same gate as the sidebar: no point offering a page with nothing on it.
+    .filter(
+      (option) =>
+        option.label !== __("Reports") || !!permittedReports.data?.length
+    )
     .map((option) => ({
       id: `go-${option.to}`,
       title: __(option.label),

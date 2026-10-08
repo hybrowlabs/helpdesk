@@ -138,6 +138,7 @@ import LucideSearch from "~icons/lucide/search";
 import {
   agentPortalSidebarOptions,
   customerPortalSidebarOptions,
+  permittedReports,
 } from "./layoutSettings";
 
 const props = defineProps<{
@@ -202,6 +203,10 @@ const navItems = computed(() => {
     : agentPortalSidebarOptions;
   return options
     .filter((item) => isCallingEnabled.value || item.label !== __("Call Logs"))
+    .filter(
+      (item) =>
+        item.label !== __("Reports") || !!permittedReports.data?.length
+    )
     .map((option, index) => ({
       label: option.label,
       icon: option.icon,

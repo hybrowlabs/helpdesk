@@ -4,7 +4,6 @@
 		"allowSyntheticDefaultImports": true,
 		"allowUnreachableCode": false,
 		"target": "es2022",
-		"baseUrl": ".",
 		"paths": {
 			"@/*": ["./src/*"],
 			"@framework/ui": ["../../frappe/ui/src/index.ts"],
