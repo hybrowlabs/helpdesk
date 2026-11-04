@@ -10,11 +10,12 @@ Repo code `HDK`; clause IDs `SPEC-HDK-NN`; case IDs `HDK-NN-A<k>.<n><L>`. ADR-00
 
 | ID | Title | Described at |
 |---|---|---|
-| `SPEC-HDK-01` | [Helpdesk fork delta inventory against upstream](clauses/01-fork-delta-inventory.md) | `develop` `09f178e3aee5686eb7b5effe6c7b378a52786db9`; also read `main` `c661773682746da9683bddf93a97e6f6797a8793` |
+| `SPEC-HDK-01` | [Helpdesk `develop` packaging delta](clauses/01-develop-packaging-delta.md) | `develop` `09f178e3aee5686eb7b5effe6c7b378a52786db9` |
+| `SPEC-HDK-02` | [Helpdesk `main` feature-line delta inventory](clauses/02-main-feature-line-inventory.md) | `main` `c661773682746da9683bddf93a97e6f6797a8793` |
 
 ## Branch result
 
-`develop` is the fork default and contains two packaging commits after upstream `develop`. `main` is the feature line named by the PW build mapping: 383 commits after its upstream merge base, 107 identified fork-only patches after patch-id comparison. `SPEC-HDK-01` groups the fork-only change areas. The mismatch is a known gap, not a behaviour conclusion.
+`develop` is the fork default and contains two packaging commits after upstream `develop`. `main` is the feature line named by the PW build mapping: 383 commits after its upstream merge base, 107 identified fork-only patches after patch-id comparison. The clauses keep those source lines separate; the docs-only PR adds neither the `main` feature files nor a merge of that history.
 
 ## Tests and verification limits
 
