@@ -22,7 +22,7 @@ This delta spec records changes in the fork `hybrowlabs/helpdesk`, rather than d
 
 ### A1: Default `develop` delta
 
-- A1.1: The default fork branch `develop` ends at `09f178e3aee5686eb7b5effe6c7b378a52786db9`; its two commits after upstream commit `8902fad23b36f4c1dba5ca6e020bcce8202614ae` add and then remove the `frappe-dependencies` table in `pyproject.toml`, leaving a blank line before `dependencies` and the same Frappe range (`pyproject.toml:5-20`).
+- A1.1: The default fork branch `develop` ends at `09f178e3aee5686eb7b5effe6c7b378a52786db9`; its two commits after upstream commit `8902fad23b36f4c1dba5ca6e020bcce8202614ae` add and then remove the `frappe-dependencies` table in `pyproject.toml`, leaving a blank line before `dependencies` and the same Frappe range (`pyproject.toml:5-19`, at the `develop` commit in the header).
 
 ### A2: `main` fork feature delta
 
@@ -43,7 +43,7 @@ This delta spec records changes in the fork `hybrowlabs/helpdesk`, rather than d
 
 ## 6. Configuration
 
-- `develop` uses Frappe `>=16.0.0-dev,<17.0.0` through its packaging table (`pyproject.toml:17-20`). `main` is a separate feature line; compatibility needs a compatible Frappe bench.
+- `develop` uses Frappe `>=16.0.0-dev,<17.0.0` through its packaging table (`pyproject.toml:17-19`, at the `develop` commit in the header). `main` is a separate feature line; compatibility needs a compatible Frappe bench.
 
 ## 7. Scheduled jobs, hooks and patches
 
